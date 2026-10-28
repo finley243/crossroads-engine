@@ -1,6 +1,6 @@
 import { RuntimeError } from "./errors";
 import { DIRECTIVE_MARK } from "./parseProse";
-import type { Bindings, Content, Effect, Expr, GameState, ItemDef, ItemInstance, ItemState, Prose, Rng, TagExpr, Value } from "./types";
+import type { Bindings, Content, Effect, Expr, GameState, ItemDef, ItemInstance, ItemState, Prose, Rng, TagExpr, Transition, Value } from "./types";
 
 export interface EvalContext {
     content: Content;
@@ -8,13 +8,6 @@ export interface EvalContext {
     bindings: Bindings;
     rng: Rng;
 }
-
-export type Transition =
-    | { kind: "goto"; node: string; pause: boolean }
-    | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; bindings: Bindings }
-    | { kind: "return" }
-    | { kind: "open_map"; map: string }
-    | { kind: "open_shop"; shop: string };
 
 export function evaluateProse(prose: Prose, context: EvalContext): { text: string; transition?: Transition } {
     const out: string[] = [];

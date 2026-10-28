@@ -1,6 +1,6 @@
 import { RuntimeError } from "./errors";
-import { type EvalContext, type Transition } from "./evaluate";
-import type { AvailableOption, Bindings, Content, Difficulty, GameState, HistoryEntry, NodePresentation, OptionView, PresentationDecl, PresentationField, PresentationState, Rng, SceneView } from "./types";
+import { condition, evaluate, evaluateProse, finishText, type EvalContext } from "./evaluate";
+import type { AvailableOption, Bindings, Content, Difficulty, GameState, HistoryEntry, NodePresentation, OptionView, PresentationDecl, PresentationField, PresentationState, Rng, SceneView, Transition } from "./types";
 
 export const DIFFICULTY_CHANCES: Record<Difficulty, number> = {
     likely: 75,

@@ -94,11 +94,10 @@ function parseEffect(stream: TokenStream): Effect {
                 return { kind: "open_map", map: expectName(stream, "a map name after 'open_map'") };
             case "open_shop":
                 return { kind: "open_shop", shop: expectName(stream, "a shop name after 'open_shop'") };
-            case "push":
-                throw new ParseError(
-                    "'push' has a body, so it's written as {push node} ... {endpush}, not inside {do}",
-                    word.position,
-                );
+            case "push": {
+                const { node, pause } = parseTarget(stream, "a node name after 'push'");
+                return { kind: "push", node, pause };
+            }
         }
     }
     return parseAssignment(stream);

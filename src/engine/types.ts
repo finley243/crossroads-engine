@@ -54,6 +54,13 @@ export type Effect =
     | { kind: "open_map"; map: string }
     | { kind: "open_shop"; shop: string };
 
+export type Transition =
+    | { kind: "goto"; node: string; pause: boolean }
+    | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; bindings: Bindings }
+    | { kind: "return" }
+    | { kind: "open_map"; map: string }
+    | { kind: "open_shop"; shop: string };
+
 
 // Prose
 
@@ -194,6 +201,7 @@ export interface SaveData {
     inventory: Record<string, ItemInstance>;
     screen: Screen;
     history: HistoryEntry[];
+    pending?: Transition;
 }
 
 export interface GameState extends SaveData {
