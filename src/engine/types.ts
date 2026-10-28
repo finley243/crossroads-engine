@@ -133,7 +133,7 @@ export interface ItemBase {
     short: string;
     description: string;
     tags: string[];
-    charges?: { max: number; reset: "mission" | "scene" };
+    charges?: { max: number; reset: string };
 }
 
 export type ItemDef = ItemBase & (

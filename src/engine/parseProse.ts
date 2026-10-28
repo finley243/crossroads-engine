@@ -81,10 +81,13 @@ function parseDirectiveAt(inner: string, offset: number): Directive {
 
 class SegmentStream {
     private index = 0;
+
     constructor(private readonly segments: Segment[]) {}
+
     peek(): Segment | undefined {
         return this.segments[this.index];
     }
+    
     next(): Segment | undefined {
         return this.segments[this.index++];
     }
@@ -114,7 +117,7 @@ function parseBody(stream: SegmentStream, closes: Set<DirectiveKind>): Prose {
         if (closes.has(directive.kind)) return parts;
         stream.next();
         switch (directive.kind) {
-                        case "if":
+            case "if":
                 parts.push(mark(), parseIf(stream, directive.cond, segment.position), mark());
                 break;
             case "switch":
