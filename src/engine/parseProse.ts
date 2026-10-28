@@ -1,5 +1,5 @@
+import { ParseError } from "./errors";
 import { parseDirective, type Directive } from "./parseDirective";
-import { ParseError } from "./tokenize";
 import type { Branch, Effect, Expr, Prose, ProsePart } from "./types";
 
 // Temporarily inserted wherever a statement directive appeared ({if}, {case}, {do}, ...).
@@ -124,7 +124,7 @@ function parseBody(stream: SegmentStream, closes: Set<DirectiveKind>): Prose {
                 parts.push(mark(), ...parseSwitch(stream, segment.position), mark());
                 break;
             case "push":
-                parts.push(mark(), parsePushBlock(stream, directive.node, directive.continuous, segment.position));
+                parts.push(mark(), parsePushBlock(stream, directive.node, directive.pause, segment.position));
                 break;
             case "do":
                 parts.push(mark(), { kind: "do", effect: directive.effect });
@@ -185,10 +185,10 @@ function parseSwitch(stream: SegmentStream, openedAt: number): ProsePart[] {
     return [...leading, { kind: "switch", branches }];
 }
 
-function parsePushBlock(stream: SegmentStream, node: string, continuous: boolean, openedAt: number): ProsePart {
+function parsePushBlock(stream: SegmentStream, node: string, pause: boolean, openedAt: number): ProsePart {
     const body = parseBody(stream, PUSH_BODY_END);
     expectClose(stream, PUSH_BODY_END, "{push}", openedAt);
-    const effect: Effect = { kind: "push", node, continuous, onReturn: [mark(), ...body, mark()] };
+    const effect: Effect = { kind: "push", node, pause, onReturn: [mark(), ...body, mark()] };
     return { kind: "do", effect };
 }
 

@@ -1,4 +1,5 @@
-import { describe, ParseError, type Token, type TokenStream } from "./tokenize";
+import { ParseError } from "./errors";
+import { describe, type Token, type TokenStream } from "./tokenize";
 import type { Expr, ItemState, TagExpr } from "./types";
 
 export function parseExpression(stream: TokenStream): Expr {

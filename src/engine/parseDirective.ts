@@ -1,5 +1,6 @@
+import { ParseError } from "./errors";
 import { parseExpression } from "./parseExpression";
-import { describe, ParseError, tokenize, TokenStream } from "./tokenize";
+import { describe, tokenize, TokenStream } from "./tokenize";
 import type { Effect, Expr } from "./types";
 
 export type Directive =
@@ -11,7 +12,7 @@ export type Directive =
     | { kind: "case"; cond: Expr }
     | { kind: "default" }
     | { kind: "endswitch" }
-    | { kind: "push"; node: string; continuous: boolean }
+    | { kind: "push"; node: string; pause: boolean }
     | { kind: "endpush" }
     | { kind: "do"; effect: Effect }
     | { kind: "output"; expr: Expr };
@@ -58,8 +59,8 @@ function parseKeywordDirective(stream: TokenStream): Directive | undefined {
         case "endpush":
             return { kind: "endpush" };
         case "push": {
-            const { node, continuous } = parseTarget(stream, "a node name after 'push'");
-            return { kind: "push", node, continuous };
+            const { node, pause } = parseTarget(stream, "a node name after 'push'");
+            return { kind: "push", node, pause };
         }
         case "do":
             return { kind: "do", effect: parseEffect(stream) };
@@ -73,8 +74,8 @@ function parseEffect(stream: TokenStream): Effect {
         stream.next();
         switch (word.text) {
             case "goto": {
-                const { node, continuous } = parseTarget(stream, "a node name after 'goto'");
-                return { kind: "goto", node, continuous };
+                const { node, pause } = parseTarget(stream, "a node name after 'goto'");
+                return { kind: "goto", node, pause };
             }
             case "return":
                 return { kind: "return" };
@@ -116,10 +117,10 @@ function parseAssignment(stream: TokenStream): Effect {
     return { kind: "assign", op: op.text as AssignOp, target, value: parseExpression(stream) };
 }
 
-function parseTarget(stream: TokenStream, description: string): { node: string; continuous: boolean } {
+function parseTarget(stream: TokenStream, description: string): { node: string; pause: boolean } {
     const node = expectName(stream, description);
-    const continuous = stream.match("name", "continuous");
-    return { node, continuous };
+    const pause = stream.match("name", "pause");
+    return { node, pause };
 }
 
 function expectName(stream: TokenStream, description: string): string {

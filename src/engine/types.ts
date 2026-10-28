@@ -48,8 +48,8 @@ export type Effect =
     | { kind: "give_item"; item: string; count?: Expr }
     | { kind: "take_item"; item: string; count?: Expr }
     | { kind: "reset_charges"; group: string }
-    | { kind: "goto"; node: string; continuous?: boolean }
-    | { kind: "push"; node: string; onReturn?: Prose; continuous?: boolean }
+    | { kind: "goto"; node: string; pause?: boolean }
+    | { kind: "push"; node: string; onReturn?: Prose; pause?: boolean }
     | { kind: "return" }
     | { kind: "open_map"; map: string }
     | { kind: "open_shop"; shop: string };

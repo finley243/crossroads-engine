@@ -1,3 +1,5 @@
+import { ParseError } from "./errors";
+
 export type TokenKind =
     | "name"
     | "number"
@@ -13,12 +15,6 @@ export interface Token {
     kind: TokenKind;
     text: string;
     position: number;
-}
-
-export class ParseError extends Error {
-    constructor(message: string, public position: number) {
-        super(message);
-    }
 }
 
 const KEYWORDS = new Set([

@@ -1,8 +1,9 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
 import type { AmbienceState, Difficulty, Expr, ItemDef, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
-import { ParseError, tokenize, TokenStream } from "./tokenize";
+import { tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { parseProse } from "./parseProse";
+import { ParseError } from "./errors";
 
 export interface SourceFile {
     path: string;
