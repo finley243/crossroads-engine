@@ -1,0 +1,92 @@
+vars:
+  credits: 5
+  door_open: false
+  mood: { enum: [calm, shaken], default: calm }
+
+items:
+  crowbar:
+    name: Rusty Crowbar
+    short: crowbar
+    description: Heavy, bent, and perfect for doors that don't want to open.
+    tags: [force]
+    kind: carried
+  stim:
+    name: Cheap Stim
+    short: stim
+    tags: [absorb]
+    kind: carried
+    consumable: true
+
+nodes:
+  start:
+    vars:
+      searched: false
+    text: |
+      Rain hammers the alley behind the noodle bar. A steel door is set into
+      the wall, and next to it, a vending machine hums and flickers.
+    options:
+      - label: "Search the dumpster"
+        requires: not searched
+        text: |
+          You dig through wet cardboard and find a **rusty crowbar**.
+          {do give_item crowbar}
+          {do searched = true}
+
+      - label: "Visit the vending machine"
+        text: |
+          {push vending}
+              The vending machine goes back to flickering.
+          {endpush}
+
+      - label: "[{c.name}] Force the door open"
+        requires: item(force) as c and not door_open
+        roll: even
+        success: |
+          You wedge the {c.short} into the frame and lean on it. The lock gives
+          with a crack that echoes down the alley.
+          {do door_open = true}
+          {do goto inside pause}
+        failure: |
+          The {c.short} slips and you slam your knuckles into the steel.
+          {do mood = shaken}
+
+      - label: "Knock"
+        requires: not door_open
+        text: |
+          You knock. Nobody answers. Somewhere inside, a radio plays something
+          *very* old.
+
+  vending:
+    text: |
+      The machine's screen reads: CREDITS: {credits}.
+    options:
+      - label: "Buy a stim (3 credits)"
+        requires: credits >= 3
+        text: |
+          The machine spits out a stim, and you pocket it.
+          {do credits -= 3}
+          {do give_item stim}
+      - label: "Step away"
+        text: "{do return}"
+
+  inside:
+    vars:
+      read: false
+    text: |
+      The room beyond the door is dark and smells of solder. A single monitor
+      glows on a desk, still logged in.
+      {if mood == shaken}
+      Your knuckles are still throbbing.
+      {endif}
+      {if count(stim) > 0}
+      At least you've got {count(stim)} stim in your pocket, just in case.
+      {endif}
+    options:
+      - label: "Read the monitor"
+        requires: not read
+        text: |
+          It's a message, half-written: *"If anyone finds this, don't trust the
+          noodle guy."*
+
+          That's where this example ends.
+          {do read = true}
