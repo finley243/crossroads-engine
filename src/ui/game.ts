@@ -51,6 +51,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     function createOptionButton(option: OptionView, position: number): HTMLButtonElement {
         const button = document.createElement("button");
         button.innerHTML = `<span class="option-number">${position + 1}</span>${inlineHtml(option.label)}`;
+        button.style.setProperty("--position", String(position));
         button.addEventListener("click", () => choose(option));
         return button;
     }

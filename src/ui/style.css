@@ -63,6 +63,8 @@ main {
 }
 
 #options button {
+    animation: appear 0.35s ease-out backwards;
+    animation-delay: calc(min(var(--position, 0), 6) * 70ms);
     font: inherit;
     text-align: left;
     color: var(--text);
@@ -88,6 +90,7 @@ main {
 .end {
     color: var(--muted);
     font-style: italic;
+    animation: appear 0.35s ease-out backwards;
 }
 
 #status {
@@ -103,4 +106,18 @@ main {
     font-family: monospace;
     font-size: 0.95rem;
     white-space: pre-wrap;
+}
+
+@keyframes appear {
+    from {
+        opacity: 0;
+        transform: translateX(-0.5rem);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #options button,
+    .end {
+        animation: none;
+    }
 }
