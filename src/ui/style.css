@@ -40,11 +40,25 @@ body {
 main {
     max-width: 42rem;
     margin: 0 auto;
-    padding: 2rem 1.25rem 4rem;
+    padding: 0 1.25rem 3rem;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-rows: minmax(50vh, auto) auto 1fr;
+    grid-template-rows: minmax(50dvh, auto) auto 1fr;
+}
+
+#story {
+    align-self: center;
+    padding: 2.5rem 0 1.5rem;
 }
 
 #story p {
     margin: 0 0 1em;
+}
+
+#story p:last-child {
+    margin-bottom: 0;
 }
 
 #story hr {
@@ -63,8 +77,8 @@ main {
 }
 
 #options button {
-    animation: appear 0.35s ease-out backwards;
-    animation-delay: calc(min(var(--position, 0), 6) * 70ms);
+    animation: appear 0.15s ease-out backwards;
+    animation-delay: calc(min(var(--position, 0), 6) * 30ms);
     font: inherit;
     text-align: left;
     color: var(--text);
@@ -76,8 +90,7 @@ main {
     cursor: pointer;
 }
 
-#options button:hover,
-#options button:focus-visible {
+#options button:focus {
     background: var(--button-hover);
     outline: none;
 }
@@ -90,7 +103,7 @@ main {
 .end {
     color: var(--muted);
     font-style: italic;
-    animation: appear 0.35s ease-out backwards;
+    animation: appear 0.15s ease-out backwards;
 }
 
 #status {
@@ -111,7 +124,7 @@ main {
 @keyframes appear {
     from {
         opacity: 0;
-        transform: translateX(-0.5rem);
+        transform: translateX(-0.2rem);
     }
 }
 

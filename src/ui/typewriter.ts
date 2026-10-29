@@ -1,7 +1,7 @@
 const HIGHLIGHT_NAME = "unrevealed";
-const SENTENCE_PAUSE_MULT = 8;
+const SENTENCE_PAUSE_MULT = 14;
 const SENTENCE_CHARS = ".!?…";
-const CLAUSE_PAUSE_MULT = 4;
+const CLAUSE_PAUSE_MULT = 8;
 const CLAUSE_CHARS = ",;:—";
 
 export function canType(): boolean {
