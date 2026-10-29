@@ -17,7 +17,7 @@ export function inlineHtml(text: string): string {
 function sceneToHtml(scene: string): string {
     return scene
         .split(/\n{2,}/)
-        .map(paragraph => `<p>${inlineHtml(paragraph).replaceAll("\n", " ")}</p>`)
+        .map(paragraph => `<p>${inlineHtml(paragraph.replaceAll("\n", " "))}</p>`)
         .join("");
 }
 

@@ -57,6 +57,8 @@ nodes:
           *very* old.
 
   vending:
+    presentation:
+      theme: netrun
     text: |
       The machine's screen reads: CREDITS: {credits}.
     options:

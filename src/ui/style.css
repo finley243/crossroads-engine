@@ -5,6 +5,23 @@
     --accent: #4fd1c5;
     --button: #1f2229;
     --button-hover: #2a2e38;
+    --error: #f0a0a0;
+    --font: Georgia, "Times New Roman", serif;
+}
+
+:root[data-theme="netrun"] {
+    --background: #040d08;
+    --text: #7dffb0;
+    --muted: #3f8f66;
+    --accent: #ff4fd8;
+    --button: #0a1a12;
+    --button-hover: #11301f;
+    --font: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+/* The part of the text the typing effect hasn't revealed yet. */
+::highlight(unrevealed) {
+    color: transparent;
 }
 
 * {
@@ -15,7 +32,7 @@ body {
     margin: 0;
     background: var(--background);
     color: var(--text);
-    font-family: Georgia, "Times New Roman", serif;
+    font-family: var(--font);
     font-size: 1.15rem;
     line-height: 1.6;
 }
@@ -75,14 +92,14 @@ main {
 
 #status {
     margin-top: 1.5rem;
-    color: #f0a0a0;
+    color: var(--error);
     font-family: monospace;
     font-size: 0.95rem;
     white-space: pre-wrap;
 }
 
 .problems {
-    color: #f0a0a0;
+    color: var(--error);
     font-family: monospace;
     font-size: 0.95rem;
     white-space: pre-wrap;

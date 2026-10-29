@@ -2,6 +2,8 @@ import { loadContent, type SourceFile } from "../engine/load";
 import { newGame, sceneView, step } from "../engine/step";
 import type { OptionView } from "../engine/types";
 import { inlineHtml, textToHtml } from "./formatText";
+import { settings } from "./settings";
+import { canType, typeText } from "./typewriter";
 
 export interface GamePage {
     story: HTMLElement;
@@ -23,13 +25,26 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     }
     let state = newGame(content, startNode, rng);
     let visibleOptions: OptionView[] = [];
+    let skipTyping: (() => void) | undefined;
     function showScene(): void {
         const view = sceneView(content, state, rng);
-        visibleOptions = view.options;
- 
+        visibleOptions = [];
+        document.documentElement.dataset.theme = view.presentation.theme ?? "";
         page.story.innerHTML = textToHtml(view.latestEntry.text);
-        page.options.replaceChildren(...view.options.map(createOptionButton));
-        if (view.options.length === 0) {
+        page.options.replaceChildren();
+        if (canType() && settings.typingCharsPerSecond > 0) {
+            skipTyping = typeText(page.story, settings.typingCharsPerSecond, () => {
+                skipTyping = undefined;
+                showOptions(view.options);
+            });
+        } else {
+            showOptions(view.options);
+        }
+    }
+    function showOptions(options: OptionView[]): void {
+        visibleOptions = options;
+        page.options.replaceChildren(...options.map(createOptionButton));
+        if (options.length === 0) {
             page.options.innerHTML = '<p class="end">The end.</p>';
         }
     }
@@ -49,7 +64,13 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         showScene();
     }
+    page.story.addEventListener("click", () => skipTyping?.());
     document.addEventListener("keydown", event => {
+        if (skipTyping && event.key === " ") {
+            event.preventDefault();
+            skipTyping();
+            return;
+        }
         const option = visibleOptions[Number(event.key) - 1];
         if (option) choose(option);
     });
