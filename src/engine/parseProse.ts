@@ -1,89 +1,55 @@
 import { ParseError } from "./errors";
 import { parseDirective, type Directive } from "./parseDirective";
+import { scanSource, type RawSegment } from "./scan";
 import type { Branch, Effect, Expr, Prose, ProsePart } from "./types";
 
 // Temporarily inserted wherever a statement directive appeared ({if}, {case}, {do}, ...).
 // All lines containing only these marks and whitespace are removed, to prevent statement-only lines from leaving extra whitespace.
 export const DIRECTIVE_MARK = "\uE000";
 
-export const LITERAL_ASTERISK = "\uE001";
-
 const mark = (): ProsePart => ({ kind: "text", text: DIRECTIVE_MARK });
 
 type Segment =
     | { kind: "text"; text: string; position: number }
-    | { kind: "directive"; directive: Directive; position: number };
+    | { kind: "directive"; directive: Directive; position: number }
+    | { kind: "comment"; position: number };
 
-function stripIndentation(src: string): string {
-    return src.split("\n").map(line => line.replace(/^[ \t]+/, "")).join("\n");
-}
-
-function scan(src: string): Segment[] {
-    const segments: Segment[] = [];
-    let text = "";
-    let textStart = 0;
-    const appendText = (s: string, position: number) => {
-        if (text === "") textStart = position;
-        text += s;
-    }
-    const flushText = () => {
-        if (text !== "") segments.push({ kind: "text", text, position: textStart });
-        text = "";
-    }
-    let i = 0;
-    while (i < src.length) {
-        const c = src[i]!;
-        if (c === "\\") {
-            const next = src[i + 1];
-            if (next === "{" || next === "}" || next === "\\") {
-                appendText(next, i);
-                i += 2;
-            } else if (next === "*") {
-                appendText(LITERAL_ASTERISK, i);
-                i += 2;
-            } else {
-                appendText(c, i);
-                i++;
-            }
-        } else if (c === "{") {
-            flushText();
-            const end = findDirectiveEnd(src, i);
-            const inner = src.slice(i + 1, end);
-            segments.push({ kind: "directive", directive: parseDirectiveAt(inner, i + 1), position: i });
-            i = end + 1;
-        } else if (c === "}") {
-            throw new ParseError("Unexpected '}' (write \\} for a literal brace)", i);
-        } else {
-            appendText(c, i);
-            i++;
+function parseDirectives(raw: RawSegment[]): Segment[] {
+    return raw.map((segment): Segment => {
+        if (segment.kind !== "directive") return segment;
+        try {
+            return { kind: "directive", directive: parseDirective(segment.source), position: segment.position };
+        } catch (e) {
+            if (e instanceof ParseError) throw new ParseError(e.message, segment.position + 1 + e.position);
+            throw e;
         }
-    }
-    flushText();
-    return segments;
+    });
 }
-
-function findDirectiveEnd(src: string, start: number): number {
-    for (let i = start + 1; i < src.length; i++) {
-        if (src[i] === "}") return i;
-        if (src[i] === "{") break;
+ 
+// Drop blank text at the very start and end, so authors can space things out in the file freely.
+function trimSegments(segments: RawSegment[]): RawSegment[] {
+    const result = [...segments];
+    const isBlank = (segment: RawSegment | undefined) => segment?.kind === "text" && segment.text.trim() === "";
+    while (isBlank(result[0])) result.shift();
+    while (isBlank(result[result.length - 1])) result.pop();
+ 
+    const first = result[0];
+    if (first?.kind === "text") {
+        const text = first.text.trimStart();
+        result[0] = { kind: "text", text, position: first.position + first.text.length - text.length };
     }
-    throw new ParseError("This directive is never closed with '}'", start);
-}
-
-function parseDirectiveAt(inner: string, offset: number): Directive {
-    try {
-        return parseDirective(inner);
-    } catch (e) {
-        if (e instanceof ParseError) throw new ParseError(e.message, offset + e.position);
-        throw e;
+    const last = result[result.length - 1];
+    if (last?.kind === "text") {
+        result[result.length - 1] = { kind: "text", text: last.text.trimEnd(), position: last.position };
     }
+    return result;
 }
-
+ 
 class SegmentStream {
     private index = 0;
-
+ 
     constructor(private readonly segments: Segment[]) {}
-
+ 
     peek(): Segment | undefined {
         return this.segments[this.index];
     }
@@ -92,16 +58,20 @@ class SegmentStream {
         return this.segments[this.index++];
     }
 }
-
+ 
 type DirectiveKind = Directive["kind"];
-
+ 
 const IF_BODY_END = new Set<DirectiveKind>(["endif", "else"]);
 const ELSE_BODY_END = new Set<DirectiveKind>(["endif"]);
 const CASE_BODY_END = new Set<DirectiveKind>(["case", "default", "endswitch"]);
 const PUSH_BODY_END = new Set<DirectiveKind>(["endpush"]);
-
+ 
 export function parseProse(src: string): Prose {
-    const stream = new SegmentStream(scan(stripIndentation(src)));
+    return parseProseSegments(scanSource(src));
+}
+ 
+export function parseProseSegments(raw: RawSegment[], trim = false): Prose {
+    const stream = new SegmentStream(parseDirectives(trim ? trimSegments(raw) : raw));
     return parseBody(stream, new Set());
 }
 
@@ -111,6 +81,11 @@ function parseBody(stream: SegmentStream, closes: Set<DirectiveKind>): Prose {
         if (segment.kind === "text") {
             stream.next();
             parts.push({ kind: "text", text: segment.text });
+            continue;
+        }
+        if (segment.kind === "comment") {
+            stream.next();
+            parts.push(mark());
             continue;
         }
         const directive = segment.directive;
@@ -130,7 +105,6 @@ function parseBody(stream: SegmentStream, closes: Set<DirectiveKind>): Prose {
                 parts.push(mark(), { kind: "do", effect: directive.effect });
                 break;
             case "output":
-                // Becomes item_text later if it turns out to be a bound item's name.
                 parts.push({ kind: "value", expr: directive.expr });
                 break;
             default:
@@ -151,12 +125,12 @@ function parseIf(stream: SegmentStream, cond: Expr, openedAt: number): ProsePart
 
 function parseSwitch(stream: SegmentStream, openedAt: number): ProsePart[] {
     const leading: ProsePart[] = [];
-    for (let segment = stream.peek(); segment?.kind === "text"; segment = stream.peek()) {
-        if (segment.text.trim() !== "") {
+    for (let segment = stream.peek(); segment && segment.kind !== "directive"; segment = stream.peek()) {
+        if (segment.kind === "text" && segment.text.trim() !== "") {
             throw new ParseError("Only whitespace can appear between {switch} and its first {case}", segment.position);
         }
         stream.next();
-        leading.push({ kind: "text", text: segment.text });
+        leading.push(segment.kind === "text" ? { kind: "text", text: segment.text } : mark());
     }
     const branches: Branch[] = [];
     let hasDefault = false;

@@ -33,8 +33,8 @@ export function parseFile(file: SourceFile): { declarations: FileDeclarations; e
     return new FileParser(file).parse();
 }
 
-const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const DIFFICULTIES = new Set<string>(["likely", "even", "unlikely"]);
+export const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+export const DIFFICULTIES = new Set<string>(["likely", "even", "unlikely"]);
 
 class FileParser {
     private readonly lineCounter = new LineCounter();

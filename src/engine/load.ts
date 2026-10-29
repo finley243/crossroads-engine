@@ -1,6 +1,7 @@
 import { DIRECTIVE_WORDS, EFFECT_WORDS } from "./parseDirective";
 import { DIRECTIVE_MARK } from "./parseProse";
-import { parseFile, type LoadError, type Located, type SourceFile } from "./parseFile";
+import { parseStoryFile, STORY_WORDS } from "./parseStoryFile";
+import { parseFile, type FileDeclarations, type LoadError, type Located, type SourceFile } from "./parseFile";
 import type { Branch, Content, Effect, Expr, ItemDef, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, ProsePart, TagExpr, VarDecl } from "./types";
 
 export type { LoadError, SourceFile } from "./parseFile";
@@ -12,7 +13,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     const vars: Located<VarDecl>[] = [];
     const presets: Located<{ name: string; decl: PresentationDecl }>[] = [];
     for (const file of files) {
-        const result = parseFile(file);
+        const result = parseSourceFile(file);
         errors.push(...result.errors);
         nodes.push(...result.declarations.nodes);
         items.push(...result.declarations.items);
@@ -40,6 +41,10 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     return { content, errors };
 }
 
+function parseSourceFile(file: SourceFile): { declarations: FileDeclarations; errors: LoadError[] } {
+    return file.path.endsWith(".story") ? parseStoryFile(file) : parseFile(file);
+}
+
 function collect<T>(declarations: Located<T>[], nameOf: (value: T) => string, what: string, errors: LoadError[]): Record<string, T> {
     const result: Record<string, T> = {};
     const firstSeen = new Map<string, Located<T>>();
@@ -65,7 +70,7 @@ function checkVariableNames(vars: Located<VarDecl>[], content: Content, errors: 
         const fullName = located.value.name;
         const dot = fullName.indexOf(".");
         const shortName = dot === -1 ? fullName : fullName.slice(dot + 1);
-        if (DIRECTIVE_WORDS.has(shortName) || EFFECT_WORDS.has(shortName)) {
+        if (DIRECTIVE_WORDS.has(shortName) || EFFECT_WORDS.has(shortName) || STORY_WORDS.has(shortName)) {
             errors.push({
                 file: located.file,
                 line: located.line,

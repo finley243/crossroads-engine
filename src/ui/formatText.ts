@@ -1,4 +1,4 @@
-import { LITERAL_ASTERISK } from "../engine/parseProse";
+import { LITERAL_ASTERISK } from "../engine/scan";
 import { SCENE_BREAK } from "../engine/step";
 
 export function textToHtml(text: string): string {

@@ -4,9 +4,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { loadContent, type SourceFile } from "../engine/load";
-import { LITERAL_ASTERISK } from "../engine/parseProse";
 import { newGame, sceneView, SCENE_BREAK, step } from "../engine/step";
 import type { Content, GameState } from "../engine/types";
+import { LITERAL_ASTERISK } from "../engine/scan";
 
 
 const [contentDir = "content", startNode = "start"] = process.argv.slice(2);
@@ -19,7 +19,7 @@ const RESET = "\x1b[0m";
 
 function readContent(dir: string): SourceFile[] {
     return readdirSync(dir, { recursive: true, encoding: "utf8" })
-        .filter((name: string) => name.endsWith(".yaml") || name.endsWith(".yml"))
+        .filter((name: string) => name.endsWith(".yaml") || name.endsWith(".yml") || name.endsWith(".story"))
         .sort()
         .map((name: string) => ({ path: name, text: readFileSync(join(dir, name), "utf8") }));
 }

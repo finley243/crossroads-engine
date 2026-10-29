@@ -9,6 +9,8 @@ export type TokenKind =
     | "right_paren"
     | "comma"
     | "dot"
+    | "colon"
+    | "bar"
     | "eof";
 
 export interface Token {
@@ -26,9 +28,11 @@ const PUNCTUATION: Record<string, TokenKind> = {
     ")": "right_paren",
     ",": "comma",
     ".": "dot",
+    ":": "comma",
+    "|": "bar"
 };
 
-const TOKEN = /(?<ws>\s+)|(?<name>[A-Za-z_]\w*)|(?<number>\d+)|(?<op>==|!=|<=|>=|\+=|-=|[<>=+-])|(?<punct>[(),.])/y;
+const TOKEN = /(?<ws>\s+)|(?<name>[A-Za-z_]\w*)|(?<number>\d+)|(?<op>==|!=|<=|>=|\+=|-=|[<>=+-])|(?<punct>[(),.:|])/y;
 
 export function tokenize(src: string): Token[] {
     const tokens: Token[] = [];
