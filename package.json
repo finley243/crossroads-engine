@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "tsx src/cli/main.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "dev": "vite",
+    "build": "vite build"
   },
   "keywords": [],
   "author": "",

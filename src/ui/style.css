@@ -1,0 +1,89 @@
+:root {
+    --background: #14161a;
+    --text: #d8dae0;
+    --muted: #7d8290;
+    --accent: #4fd1c5;
+    --button: #1f2229;
+    --button-hover: #2a2e38;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--background);
+    color: var(--text);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.15rem;
+    line-height: 1.6;
+}
+
+main {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+}
+
+#story p {
+    margin: 0 0 1em;
+}
+
+#story hr {
+    border: none;
+    border-top: 1px solid var(--muted);
+    margin: 1.5em auto;
+    width: 30%;
+    opacity: 0.5;
+}
+
+#options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+}
+
+#options button {
+    font: inherit;
+    text-align: left;
+    color: var(--text);
+    background: var(--button);
+    border: 1px solid transparent;
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.6rem 0.9rem;
+    cursor: pointer;
+}
+
+#options button:hover,
+#options button:focus-visible {
+    background: var(--button-hover);
+    outline: none;
+}
+
+.option-number {
+    color: var(--muted);
+    margin-right: 0.6em;
+}
+
+.end {
+    color: var(--muted);
+    font-style: italic;
+}
+
+#status {
+    margin-top: 1.5rem;
+    color: #f0a0a0;
+    font-family: monospace;
+    font-size: 0.95rem;
+    white-space: pre-wrap;
+}
+
+.problems {
+    color: #f0a0a0;
+    font-family: monospace;
+    font-size: 0.95rem;
+    white-space: pre-wrap;
+}
