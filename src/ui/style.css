@@ -53,6 +53,8 @@ body {
     font-size: 1.15rem;
     font-weight: 200;
     line-height: 1.6;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 main {
@@ -69,8 +71,6 @@ main {
 #story {
     align-self: center;
     padding: 2.5rem 0 1.5rem;
-    user-select: none;
-    -webkit-user-select: none;
 }
 
 #story p {
