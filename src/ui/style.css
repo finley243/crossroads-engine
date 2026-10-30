@@ -26,6 +26,15 @@
     color: transparent;
 }
 
+/* The characters just typed fade in, in steps from the newest (faintest) to the oldest. They use the normal text
+   color (currentcolor doesn't work inside a highlight), so text with a color of its own fades in as the normal one. */
+::highlight(fade-0) { color: color-mix(in srgb, var(--text) 12%, transparent); }
+::highlight(fade-1) { color: color-mix(in srgb, var(--text) 28%, transparent); }
+::highlight(fade-2) { color: color-mix(in srgb, var(--text) 44%, transparent); }
+::highlight(fade-3) { color: color-mix(in srgb, var(--text) 60%, transparent); }
+::highlight(fade-4) { color: color-mix(in srgb, var(--text) 76%, transparent); }
+::highlight(fade-5) { color: color-mix(in srgb, var(--text) 90%, transparent); }
+
 * {
     box-sizing: border-box;
 }
@@ -273,8 +282,7 @@ main {
 }
 
 .map-marker:hover .map-marker-label,
-.map-marker.selected .map-marker-label,
-.map-marker.current .map-marker-label {
+.map-marker.selected .map-marker-label {
     opacity: 1;
 }
 

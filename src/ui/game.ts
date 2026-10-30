@@ -49,7 +49,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
             skipTyping = typeText(page.story, settings.typingCharsPerSecond, () => {
                 skipTyping = undefined;
                 showOptions(view.options);
-            });
+            }, settings.typingFadeMs);
         } else {
             showOptions(view.options);
         }
