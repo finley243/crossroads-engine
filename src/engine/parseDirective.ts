@@ -90,8 +90,10 @@ function parseEffect(stream: TokenStream): Effect {
             }
             case "reset_charges":
                 return { kind: "reset_charges", group: expectName(stream, "a group name after 'reset_charges'") };
-            case "open_map":
-                return { kind: "open_map", map: expectName(stream, "a map name after 'open_map'") };
+            case "open_map": {
+                const map = expectName(stream, "a map name after 'open_map'");
+                return { kind: "open_map", map, cancelable: !stream.match("name", "nocancel") };
+            }
             case "open_shop":
                 return { kind: "open_shop", shop: expectName(stream, "a shop name after 'open_shop'") };
             case "push": {

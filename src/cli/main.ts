@@ -6,7 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { loadContent, type SourceFile } from "../engine/load";
 import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, sceneView, SCENE_BREAK, step } from "../engine/step";
-import type { Content, GameState, MapView } from "../engine/types";
+import type { Content, GameState, MapLocationView, MapView } from "../engine/types";
 import { LITERAL_ASTERISK } from "../engine/scan";
 
 
@@ -42,14 +42,17 @@ function show(content: Content, state: GameState): void {
     view.options.forEach((option, i) => console.log(`  ${i + 1}. ${style(option.label)}`));
 }
 
-function showMap(view: MapView, canTravel: boolean): void {
+function showMap(view: MapView, canTravel: boolean, cancelable = true): MapLocationView[] {
     console.log(`\n${BOLD}Map: ${view.id}${RESET}`);
-    view.locations.forEach((location, i) => {
+    const destinations = canTravel ? view.locations.filter(location => !location.current) : [];
+    for (const location of view.locations) {
         const here = location.current ? ` ${DIM}(you are here)${RESET}` : "";
         const description = location.description ? ` ${DIM}- ${location.description}${RESET}` : "";
-        console.log(`  ${i + 1}. ${location.name}${here}${description}`);
-    });
-    if (canTravel) console.log(`  ${view.locations.length + 1}. Cancel`);
+        const number = destinations.indexOf(location) + 1;
+        console.log(`  ${number > 0 ? `${number}.` : "- "} ${location.name}${here}${description}`);
+    }
+    if (canTravel && cancelable) console.log(`  ${destinations.length + 1}. Cancel`);
+    return destinations;
 }
 
 async function main(): Promise<void> {
@@ -76,19 +79,20 @@ async function main(): Promise<void> {
     for (;;) {
         if (state.screen.kind === "map") {
             const map = mapView(content, state, state.screen.map, rng);
-            showMap(map, true);
+            const cancelable = state.screen.cancelable;
+            const destinations = showMap(map, true, cancelable);
             const input = await ask();
             if (input === null || input === "q" || input === "quit") break;
             const number = Number(input);
             try {
-                if (number === map.locations.length + 1) {
+                if (cancelable && number === destinations.length + 1) {
                     state = closeMap(state);
                     show(content, state);
-                } else if (map.locations[number - 1]) {
-                    state = travel(content, state, map.locations[number - 1]!.id, rng);
+                } else if (destinations[number - 1]) {
+                    state = travel(content, state, destinations[number - 1]!.id, rng);
                     show(content, state);
                 } else {
-                    console.log(`Enter a number from 1 to ${map.locations.length + 1} (or q to quit).`);
+                    console.log(`Enter a number from 1 to ${destinations.length + (cancelable ? 1 : 0)} (or q to quit).`);
                 }
             } catch (e) {
                 console.error(`\n${BOLD}Error:${RESET} ${e instanceof Error ? e.message : String(e)}`);

@@ -263,7 +263,7 @@ export function applyEffect(effect: Effect, context: EvalContext): Transition | 
         case "return":
             return { kind: "return" };
         case "open_map":
-            return { kind: "open_map", map: effect.map };
+            return { kind: "open_map", map: effect.map, cancelable: effect.cancelable };
         case "open_shop":
             return { kind: "open_shop", shop: effect.shop };
     }

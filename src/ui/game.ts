@@ -4,7 +4,7 @@ import { newGame, sceneView, step } from "../engine/step";
 import type { OptionView } from "../engine/types";
 import { inlineHtml, textToHtml } from "./formatText";
 import { listenForInput, type InputAction } from "./input";
-import { createMapScreen } from "./mapScreen";
+import { createMapScreen, type MapScreenHandlers } from "./mapScreen";
 import { settings } from "./settings";
 import { canType, typeText } from "./typewriter";
 
@@ -90,16 +90,20 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     // The map the story opened, which the player can travel from.
     function openTravelMap(): void {
         if (state.screen.kind !== "map") return;
-        mapScreen.show(mapView(content, state, state.screen.map, rng), {
+        const handlers: MapScreenHandlers = {
             onTravel: locationId => attempt(() => {
                 state = travel(content, state, locationId, rng);
                 showScene();
             }),
-            onClose: () => attempt(() => {
+        };
+        // A map the story doesn't allow canceling has no way out except traveling.
+        if (state.screen.cancelable) {
+            handlers.onClose = () => attempt(() => {
                 state = closeMap(state);
                 showScene(false); // the player has already read this scene
-            }),
-        });
+            });
+        }
+        mapScreen.show(mapView(content, state, state.screen.map, rng), handlers);
     }
     // A look at the map the player is near, at any time. It never changes the game.
     function openReadOnlyMap(): boolean {

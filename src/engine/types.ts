@@ -51,14 +51,14 @@ export type Effect =
     | { kind: "goto"; node: string; pause?: boolean }
     | { kind: "push"; node: string; onReturn?: Prose; pause?: boolean }
     | { kind: "return" }
-    | { kind: "open_map"; map: string }
+    | { kind: "open_map"; map: string; cancelable: boolean }
     | { kind: "open_shop"; shop: string };
 
 export type Transition =
     | { kind: "goto"; node: string; pause: boolean }
     | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; bindings: Bindings }
     | { kind: "return" }
-    | { kind: "open_map"; map: string }
+    | { kind: "open_map"; map: string; cancelable: boolean }
     | { kind: "open_shop"; shop: string };
 
 
@@ -212,7 +212,7 @@ export interface StackFrame {
 
 export type Screen =
     | { kind: "node" }
-    | { kind: "map"; map: string }
+    | { kind: "map"; map: string; cancelable: boolean }
     | { kind: "shop"; shop: string };
 
 export interface SaveData {

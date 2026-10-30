@@ -1,11 +1,11 @@
 import Panzoom, { type PanzoomObject } from "@panzoom/panzoom";
-import type { MapView } from "../engine/types";
+import type { MapLocationView, MapView } from "../engine/types";
 import { imageUrl } from "./images";
 import type { InputAction } from "./input";
 
 export interface MapScreenHandlers {
     onTravel?: (locationId: string) => void; // only given when the player can travel from this map
-    onClose: () => void;
+    onClose?: () => void; // not given when the map has to be used to travel
 }
 
 export interface MapScreen {
@@ -112,7 +112,8 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         travelButton.hidden = handlers.onTravel === undefined;
         travelButton.addEventListener("click", travelToSelected);
         closeButton.textContent = handlers.onTravel ? "Cancel" : "Close";
-        closeButton.addEventListener("click", () => handlers.onClose());
+        closeButton.hidden = handlers.onClose === undefined;
+        closeButton.addEventListener("click", () => handlers.onClose?.());
     }
 
     function draggedSincePress(event: MouseEvent): boolean {
@@ -150,17 +151,22 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         showInfo();
     }
 
+    function selectedLocation(): MapLocationView | undefined {
+        return view.locations.find(l => l.id === selectedId);
+    }
+
     function showInfo(): void {
-        const location = view.locations.find(l => l.id === selectedId);
+        const location = selectedLocation();
         infoName.textContent = location ? location.name + (location.current ? " (you are here)" : "") : "";
         infoDescription.textContent = location
             ? location.description
             : handlers.onTravel ? "Choose where to go." : "Select a place to read about it.";
-        travelButton.disabled = !location;
+        travelButton.disabled = !location || location.current; // there's nowhere to go from where you already are
     }
 
     function travelToSelected(): void {
-        if (selectedId !== undefined) handlers.onTravel?.(selectedId);
+        const location = selectedLocation();
+        if (location && !location.current) handlers.onTravel?.(location.id);
     }
 
     // Keep a marker chosen with the keyboard in view, panning to it if it's near or past the edge.
@@ -197,15 +203,18 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         switch (action.kind) {
             case "move":
                 return moveSelection(action.step);
-            case "confirm":
-                if (!handlers.onTravel || selectedId === undefined) return false;
+            case "confirm": {
+                const location = selectedLocation();
+                if (!handlers.onTravel || !location || location.current) return false;
                 travelToSelected();
                 return true;
+            }
             case "cancel":
+                if (!handlers.onClose) return false;
                 handlers.onClose();
                 return true;
             case "map":
-                if (handlers.onTravel) return false; // the map the story opened is closed with cancel
+                if (handlers.onTravel || !handlers.onClose) return false; // the map the story opened is closed with cancel
                 handlers.onClose();
                 return true;
             case "zoom":

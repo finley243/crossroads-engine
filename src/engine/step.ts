@@ -1,6 +1,8 @@
 import { RuntimeError } from "./errors";
-import { condition, evaluate, evaluateProse, finishText, type EvalContext } from "./evaluate";
-import type { AvailableOption, Bindings, Content, Difficulty, GameState, HistoryEntry, NodePresentation, OptionView, PresentationDecl, PresentationField, PresentationState, Rng, SceneView, Transition } from "./types";
+import { condition, evaluateProse, finishText, type EvalContext } from "./evaluate";
+import { travelLocations } from "./mapLocations";
+import { resolvePresentation } from "./presentation";
+import type { AvailableOption, Bindings, Content, Difficulty, GameState, HistoryEntry, OptionView, Rng, SceneView, Transition } from "./types";
 
 export const DIFFICULTY_CHANCES: Record<Difficulty, number> = {
     likely: 75,
@@ -109,9 +111,16 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
             if (!frame.onReturn) return { text: "" };
             return evaluateProse(frame.onReturn, { content, state: s, bindings: frame.bindings, rng });
         }
-        case "open_map":
-            s.screen = { kind: "map", map: t.map };
+        case "open_map": {
+            const map = content.maps[t.map];
+            if (!map) throw new RuntimeError(`Unknown map '${t.map}'`);
+            s.screen = { kind: "map", map: t.map, cancelable: t.cancelable };
+            // A map that can't be canceled has to have somewhere to go, or the player would be stuck on it.
+            if (!t.cancelable && travelLocations(content, s, map, rng).length === 0) {
+                throw new RuntimeError(`The map '${t.map}' was opened with nocancel, but there's nowhere to travel to`);
+            }
             return { text: "" };
+        }
         case "open_shop":
             s.screen = { kind: "shop", shop: t.shop };
             return { text: "" };
@@ -148,37 +157,4 @@ function computeOptions(s: GameState, content: Content, rng: Rng): AvailableOpti
         result.push({ index: option.index, label, bindings });
     }
     return result;
-}
-
-const PRESENTATION_FIELDS = ["image", "theme", "location", "music", "ambience"] as const;
-type FieldName = (typeof PRESENTATION_FIELDS)[number];
-
-export function resolvePresentation(content: Content, state: GameState, rng: Rng): PresentationState {
-    const chain = [...state.stack.map(frame => frame.node), state.node];
-    const result: PresentationState = { image: null, theme: null, location: null, music: null, ambience: null };
-    const ctx: EvalContext = { content, state, bindings: {}, rng };
-    chain.forEach((nodeId, depth) => {
-        const decl = withPreset(content, content.nodes[nodeId]?.presentation);
-        for (const name of PRESENTATION_FIELDS) {
-            const field = decl[name] as PresentationField<unknown> | undefined;
-            if (field === undefined) {
-                if (depth === 0) setField(result, name, null);
-                continue;
-            }
-            const entry = field.find(e => e.when === undefined || evaluate(e.when, { ...ctx, bindings: {} }) === true);
-            setField(result, name, entry ? entry.value : null);
-        }
-    });
-    return result;
-}
-
-function withPreset(content: Content, presentation: NodePresentation | undefined): PresentationDecl {
-    if (!presentation) return {};
-    const { preset, ...own } = presentation;
-    const base = preset === undefined ? {} : (content.presets[preset] ?? {});
-    return { ...base, ...own };
-}
-
-function setField(result: PresentationState, name: FieldName, value: unknown): void {
-    (result as Record<FieldName, unknown>)[name] = value;
 }

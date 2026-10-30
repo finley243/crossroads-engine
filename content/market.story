@@ -8,6 +8,12 @@ Head back out
 {then}
     {do open_map city}
 
+{>}
+Leave the market for good
+{then}
+    You turn your back on the stalls. There's no reason to come back.
+    {do open_map city nocancel}
+
 
 {node repo}
 {location halvorsen}

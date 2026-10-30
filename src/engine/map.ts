@@ -1,11 +1,11 @@
 import { RuntimeError } from "./errors";
-import { condition, type EvalContext } from "./evaluate";
-import { advance, resolvePresentation } from "./step";
-import type { Content, GameState, MapDef, MapLocation, MapView, Rng } from "./types";
+import { availableLocations, currentLocationId } from "./mapLocations";
+import { advance } from "./step";
+import type { Content, GameState, MapDef, MapView, Rng } from "./types";
 
 export function mapView(content: Content, state: GameState, mapId: string, rng: Rng): MapView {
     const map = findMap(content, mapId);
-    const currentLocation = resolvePresentation(content, state, rng).location;
+    const currentLocation = currentLocationId(content, state, rng);
     return {
         id: map.id,
         image: map.image,
@@ -23,7 +23,7 @@ export function mapView(content: Content, state: GameState, mapId: string, rng: 
 }
 
 export function defaultMapId(content: Content, state: GameState, rng: Rng): string | undefined {
-    const currentLocation = resolvePresentation(content, state, rng).location;
+    const currentLocation = currentLocationId(content, state, rng);
     const maps = Object.values(content.maps);
     const withCurrentLocation = maps.find(map => map.locations.some(location => location.id === currentLocation));
     return (withCurrentLocation ?? maps[0])?.id;
@@ -34,6 +34,9 @@ export function travel(content: Content, state: GameState, locationId: string, r
     const map = findMap(content, state.screen.map);
     const destination = availableLocations(content, state, map, rng).find(location => location.id === locationId);
     if (!destination) throw new RuntimeError(`'${locationId}' isn't available on the map '${map.id}' right now`);
+    if (destination.id === currentLocationId(content, state, rng)) {
+        throw new RuntimeError(`You're already at ${destination.name}`);
+    }
 
     const s = structuredClone(state);
     s.stack = [];
@@ -44,6 +47,7 @@ export function travel(content: Content, state: GameState, locationId: string, r
 
 export function closeMap(state: GameState): GameState {
     if (state.screen.kind !== "map") throw new RuntimeError("There's no map open");
+    if (!state.screen.cancelable) throw new RuntimeError(`The map '${state.screen.map}' can't be canceled; the player has to travel`);
     const s = structuredClone(state);
     s.screen = { kind: "node" };
     if (s.history[s.history.length - 1]?.text === "") s.history.pop();
@@ -54,9 +58,4 @@ function findMap(content: Content, mapId: string): MapDef {
     const map = content.maps[mapId];
     if (!map) throw new RuntimeError(`Unknown map '${mapId}'`);
     return map;
-}
-
-function availableLocations(content: Content, state: GameState, map: MapDef, rng: Rng): MapLocation[] {
-    const ctx: EvalContext = { content, state, bindings: {}, rng };
-    return map.locations.filter(location => !location.requires || condition(location.requires, ctx) !== null);
 }
