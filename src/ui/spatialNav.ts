@@ -13,6 +13,8 @@ const AXES: Record<Direction, { x: number; y: number }> = {
     right: { x: 1, y: 0 },
 };
 
+const AXIS_ALLIGNED_WEIGHT = 1; // when greater than 1, selection will prefer markers that are closer to the movement axis
+
 export function neighbor(from: { x: number; y: number }, places: Place[], direction: Direction, exclude?: string): Place | undefined {
     const axis = AXES[direction];
     let best: Place | undefined;
@@ -24,7 +26,7 @@ export function neighbor(from: { x: number; y: number }, places: Place[], direct
         const along = dx * axis.x + dy * axis.y;
         const across = Math.abs(dx * axis.y - dy * axis.x);
         if (along <= 0 || across > along) continue;
-        const score = Math.hypot(along, 2 * across);
+        const score = Math.hypot(along, AXIS_ALLIGNED_WEIGHT * across);
         if (score < bestScore) {
             best = place;
             bestScore = score;
