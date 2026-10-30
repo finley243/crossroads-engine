@@ -224,6 +224,13 @@ main {
     border-color: var(--text);
 }
 
+/* A location that's shown but can't be traveled to yet is dimmed. */
+.map-marker.locked .map-marker-dot {
+    background: var(--muted);
+    box-shadow: 0 0 0 2px var(--muted);
+    opacity: 0.6;
+}
+
 /* "You are here" is a ring that pulses. */
 .map-marker.current .map-marker-dot::after {
     content: "";
@@ -279,10 +286,12 @@ main {
     gap: 0.75rem 1rem;
 }
 
+/* A fixed height, so the map above doesn't move or resize whichever location is selected. */
 .map-info {
     flex: 1 1 14rem;
     min-width: 0;
-    min-height: 4.5rem;
+    height: 6.75rem;
+    overflow-y: auto;
 }
 
 .map-info h2 {
@@ -296,6 +305,13 @@ main {
     color: var(--muted);
     font-size: 1rem;
     line-height: 1.4;
+}
+
+.map-info .map-info-note {
+    margin-top: 0.35rem;
+    color: var(--accent);
+    font-size: 0.95rem;
+    font-style: italic;
 }
 
 .map-actions {

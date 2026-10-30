@@ -1,5 +1,5 @@
 import { RuntimeError } from "./errors";
-import { availableLocations, currentLocationId } from "./mapLocations";
+import { availableLocations, currentLocationId, isUnlocked } from "./mapLocations";
 import { advance } from "./step";
 import type { Content, GameState, MapDef, MapView, Rng } from "./types";
 
@@ -11,14 +11,21 @@ export function mapView(content: Content, state: GameState, mapId: string, rng: 
         image: map.image,
         width: map.width,
         height: map.height,
-        locations: availableLocations(content, state, map, rng).map(location => ({
-            id: location.id,
-            name: location.name,
-            description: location.description,
-            x: location.x,
-            y: location.y,
-            current: location.id === currentLocation,
-        })),
+        locations: availableLocations(content, state, map, rng).map(location => {
+            const current = location.id === currentLocation;
+            const locked = !isUnlocked(content, state, location, rng);
+            return {
+                id: location.id,
+                name: location.name,
+                description: location.description,
+                x: location.x,
+                y: location.y,
+                current,
+                locked,
+                lockedNote: location.lockedNote ?? "",
+                travelable: !current && !locked,
+            };
+        }),
     };
 }
 
@@ -36,6 +43,9 @@ export function travel(content: Content, state: GameState, locationId: string, r
     if (!destination) throw new RuntimeError(`'${locationId}' isn't available on the map '${map.id}' right now`);
     if (destination.id === currentLocationId(content, state, rng)) {
         throw new RuntimeError(`You're already at ${destination.name}`);
+    }
+    if (!isUnlocked(content, state, destination, rng)) {
+        throw new RuntimeError(destination.lockedNote ? `${destination.name} is locked: ${destination.lockedNote}` : `${destination.name} is locked`);
     }
 
     const s = structuredClone(state);

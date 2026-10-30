@@ -161,6 +161,8 @@ export interface MapLocation {
     y: number;
     node: string; // the node that traveling here enters
     requires?: Expr; // the location only appears on the map while this is true
+    unlocked?: Expr; // it can only be traveled to while this is true, though it's still shown on the map
+    lockedNote?: string; // says why it's locked
 }
 
 export interface MapDef {
@@ -261,6 +263,9 @@ export interface MapLocationView {
     x: number;
     y: number;
     current: boolean; // the player's current location, for "you are here"
+    locked: boolean; // shown on the map, but not available yet
+    lockedNote: string;
+    travelable: boolean; // not where the player already is, and not locked
 }
 
 export interface MapView {

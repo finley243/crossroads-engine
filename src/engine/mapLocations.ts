@@ -13,8 +13,14 @@ export function currentLocationId(content: Content, state: GameState, rng: Rng):
     return resolvePresentation(content, state, rng).location;
 }
 
-/** The locations the player could travel to: the available ones, except the one they're already at. */
+/** Whether a location shown on the map can be traveled to yet. */
+export function isUnlocked(content: Content, state: GameState, location: MapLocation, rng: Rng): boolean {
+    if (!location.unlocked) return true;
+    return condition(location.unlocked, { content, state, bindings: {}, rng }) !== null;
+}
+
+/** The locations the player could travel to: the unlocked ones, except the one they're already at. */
 export function travelLocations(content: Content, state: GameState, map: MapDef, rng: Rng): MapLocation[] {
     const here = currentLocationId(content, state, rng);
-    return availableLocations(content, state, map, rng).filter(location => location.id !== here);
+    return availableLocations(content, state, map, rng).filter(location => location.id !== here && isUnlocked(content, state, location, rng));
 }

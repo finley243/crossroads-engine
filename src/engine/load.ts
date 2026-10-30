@@ -135,10 +135,10 @@ class Resolver {
         const locations = map.locations.map(location => {
             this.where = `location '${location.id}' of map '${map.id}'`;
             this.checkNode(location.node);
-            if (location.requires === undefined) return location;
-            const { expr, bindings } = this.condition(location.requires, scope);
-            if (bindings.length > 0) this.error("Item bindings can't be made in a location's requirement");
-            return { ...location, requires: expr };
+            const resolved = { ...location };
+            if (location.requires) resolved.requires = this.locationCondition(location.requires, scope, "requirement");
+            if (location.unlocked) resolved.unlocked = this.locationCondition(location.unlocked, scope, "unlock condition");
+            return resolved;
         });
         return { ...map, locations };
     }
@@ -183,6 +183,12 @@ class Resolver {
             success: this.prose(result.success, scope),
             failure: this.prose(result.failure, scope),
         };
+    }
+
+    private locationCondition(expr: Expr, scope: Scope, what: string): Expr {
+        const { expr: resolved, bindings } = this.condition(expr, scope);
+        if (bindings.length > 0) this.error(`Item bindings can't be made in a location's ${what}`);
+        return resolved;
     }
 
     presentation<T extends PresentationDecl | NodePresentation>(decl: T, nodeId: string | null, location: { file: string; line: number }, where: string): T {

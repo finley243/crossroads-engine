@@ -44,10 +44,12 @@ function show(content: Content, state: GameState): void {
 
 function showMap(view: MapView, canTravel: boolean, cancelable = true): MapLocationView[] {
     console.log(`\n${BOLD}Map: ${view.id}${RESET}`);
-    const destinations = canTravel ? view.locations.filter(location => !location.current) : [];
+    const destinations = canTravel ? view.locations.filter(location => location.travelable) : [];
     for (const location of view.locations) {
-        const here = location.current ? ` ${DIM}(you are here)${RESET}` : "";
-        const description = location.description ? ` ${DIM}- ${location.description}${RESET}` : "";
+        const status = location.current ? " (you are here)" : location.locked ? " (locked)" : "";
+        const here = status ? ` ${DIM}${status.trim()}${RESET}` : "";
+        const detail = location.locked && location.lockedNote ? location.lockedNote : location.description;
+        const description = detail ? ` ${DIM}- ${detail}${RESET}` : "";
         const number = destinations.indexOf(location) + 1;
         console.log(`  ${number > 0 ? `${number}.` : "- "} ${location.name}${here}${description}`);
     }

@@ -28,10 +28,11 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
     let resizeObserver: ResizeObserver | undefined;
     let selectedId: string | undefined;
     let pressedAt = { x: 0, y: 0 };
+    let fittedTo = { width: 0, height: 0 }; // the size of the area the frame was last fitted to
     const markers = new Map<string, HTMLButtonElement>();
 
     let area: HTMLElement, frame: HTMLElement, canvas: HTMLElement;
-    let infoName: HTMLElement, infoDescription: HTMLElement, travelButton: HTMLButtonElement, closeButton: HTMLButtonElement;
+    let infoName: HTMLElement, infoDescription: HTMLElement, infoNote: HTMLElement, travelButton: HTMLButtonElement, closeButton: HTMLButtonElement;
 
     function show(newView: MapView, newHandlers: MapScreenHandlers): void {
         hide();
@@ -46,8 +47,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         fitFrame();
         startPanzoom();
         resizeObserver = new ResizeObserver(() => {
-            fitFrame();
-            panzoom?.reset({ animate: false });
+            if (area.clientWidth !== fittedTo.width || area.clientHeight !== fittedTo.height) refitFrame();
         });
         resizeObserver.observe(area);
         showInfo();
@@ -72,7 +72,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
                 <div class="map-frame"><div class="map-canvas"><img class="map-image" alt="" draggable="false"></div></div>
             </div>
             <div class="map-panel">
-                <div class="map-info"><h2></h2><p></p></div>
+                <div class="map-info"><h2></h2><p></p><p class="map-info-note"></p></div>
                 <div class="map-actions"><button class="map-travel" type="button">Travel</button><button class="map-close" type="button"></button></div>
             </div>`;
         area = root.querySelector(".map-area")!;
@@ -80,6 +80,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         canvas = root.querySelector(".map-canvas")!;
         infoName = root.querySelector(".map-info h2")!;
         infoDescription = root.querySelector(".map-info p")!;
+        infoNote = root.querySelector(".map-info-note")!;
         travelButton = root.querySelector(".map-travel")!;
         closeButton = root.querySelector(".map-close")!;
 
@@ -90,10 +91,10 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         for (const location of view.locations) {
             const marker = document.createElement("button");
             marker.type = "button";
-            marker.className = location.current ? "map-marker current" : "map-marker";
+            marker.className = "map-marker" + (location.current ? " current" : "") + (location.locked ? " locked" : "");
             marker.style.setProperty("--x", String(location.x / view.width));
             marker.style.setProperty("--y", String(location.y / view.height));
-            marker.setAttribute("aria-label", location.current ? `${location.name} (you are here)` : location.name);
+            marker.setAttribute("aria-label", location.current ? `${location.name} (you are here)` : location.locked ? `${location.name} (locked)` : location.name);
             marker.innerHTML = '<span class="map-marker-dot"></span><span class="map-marker-label"></span>';
             marker.querySelector(".map-marker-label")!.textContent = location.name;
             marker.addEventListener("click", event => {
@@ -125,6 +126,17 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         const scale = Math.min((area.clientWidth - FRAME_MARGIN) / view.width, (area.clientHeight - FRAME_MARGIN) / view.height);
         frame.style.width = `${Math.max(1, Math.floor(view.width * scale))}px`;
         frame.style.height = `${Math.max(1, Math.floor(view.height * scale))}px`;
+        fittedTo = { width: area.clientWidth, height: area.clientHeight };
+    }
+
+    // The window changed size. The map gets resized to fit, and keeps the same zoom and the same part in view.
+    function refitFrame(): void {
+        const oldWidth = frame.offsetWidth;
+        fitFrame();
+        if (!panzoom || oldWidth === 0) return;
+        const ratio = frame.offsetWidth / oldWidth;
+        const pan = panzoom.getPan();
+        panzoom.pan(pan.x * ratio, pan.y * ratio, { animate: false }); // the pan is in the map's own pixels, which just scaled
     }
 
     function startPanzoom(): void {
@@ -157,16 +169,17 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
 
     function showInfo(): void {
         const location = selectedLocation();
-        infoName.textContent = location ? location.name + (location.current ? " (you are here)" : "") : "";
+        infoName.textContent = location ? location.name : "";
         infoDescription.textContent = location
             ? location.description
             : handlers.onTravel ? "Choose where to go." : "Select a place to read about it.";
-        travelButton.disabled = !location || location.current; // there's nowhere to go from where you already are
+        infoNote.textContent = !location ? "" : location.current ? "You are here." : location.locked ? location.lockedNote || "You can't go there yet." : "";
+        travelButton.disabled = !location?.travelable;
     }
 
     function travelToSelected(): void {
         const location = selectedLocation();
-        if (location && !location.current) handlers.onTravel?.(location.id);
+        if (location?.travelable) handlers.onTravel?.(location.id);
     }
 
     // Keep a marker chosen with the keyboard in view, panning to it if it's near or past the edge.
@@ -205,7 +218,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
                 return moveSelection(action.step);
             case "confirm": {
                 const location = selectedLocation();
-                if (!handlers.onTravel || !location || location.current) return false;
+                if (!handlers.onTravel || !location?.travelable) return false;
                 travelToSelected();
                 return true;
             }

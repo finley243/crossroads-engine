@@ -374,7 +374,7 @@ class FileParser {
             this.error(node, `${where} must be a map`);
             return undefined;
         }
-        const fields = this.fields(node, ["name", "description", "x", "y", "node", "requires"], where);
+        const fields = this.fields(node, ["name", "description", "x", "y", "node", "requires", "unlocked", "locked_note"], where);
 
         const nameNode = this.required(fields, "name", node, where);
         const xNode = this.required(fields, "x", node, where);
@@ -393,6 +393,19 @@ class FileParser {
             const requires = this.expression(requiresNode, `the requirement of ${where}`);
             if (!requires) return undefined;
             location.requires = requires;
+        }
+        const unlockedNode = fields.get("unlocked");
+        if (unlockedNode !== undefined) {
+            const unlocked = this.expression(unlockedNode, `the unlock condition of ${where}`);
+            if (!unlocked) return undefined;
+            location.unlocked = unlocked;
+        }
+        const noteNode = fields.get("locked_note");
+        if (noteNode !== undefined) {
+            if (unlockedNode === undefined) this.error(noteNode, `${where} has a 'locked_note' but no 'unlocked' condition, so it's never locked`);
+            const note = this.string(noteNode, `the locked note of ${where}`);
+            if (note === undefined) return undefined;
+            location.lockedNote = note;
         }
         return location;
     }
