@@ -136,7 +136,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         switch (action.kind) {
             case "move":
-                return moveSelection(action.step);
+                return moveSelection(action.direction === "down" || action.direction === "right" ? 1 : -1);
             case "confirm": {
                 const selected = optionButtons().find(button => button === document.activeElement);
                 selected?.click();

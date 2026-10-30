@@ -1,5 +1,7 @@
+export type Direction = "up" | "down" | "left" | "right";
+
 export type InputAction =
-    | { kind: "move"; step: 1 | -1 }
+    | { kind: "move"; direction: Direction }
     | { kind: "confirm" }
     | { kind: "choose"; position: number }
     | { kind: "cancel" } // back out of a screen
@@ -19,9 +21,13 @@ function keyboardAction(event: KeyboardEvent): InputAction | undefined {
     if (event.ctrlKey || event.altKey || event.metaKey) return undefined;
     switch (event.key) {
         case "ArrowDown":
-            return { kind: "move", step: 1 };
+            return { kind: "move", direction: "down" };
         case "ArrowUp":
-            return { kind: "move", step: -1 };
+            return { kind: "move", direction: "up" };
+        case "ArrowLeft":
+            return { kind: "move", direction: "left" };
+        case "ArrowRight":
+            return { kind: "move", direction: "right" };
         case "Enter":
         case " ":
             return { kind: "confirm" };

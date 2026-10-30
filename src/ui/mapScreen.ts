@@ -1,6 +1,7 @@
 import type { MapLocationView, MapView } from "../engine/types";
 import { imageUrl } from "./images";
-import type { InputAction } from "./input";
+import type { Direction, InputAction } from "./input";
+import { nearest, neighbor } from "./spatialNav";
 import { createViewport, type Viewport } from "./viewport";
 
 export interface MapScreenHandlers {
@@ -172,21 +173,26 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         viewport.panBy(frameBox.left + frameBox.width / 2 - box.left, frameBox.top + frameBox.height / 2 - box.top);
     }
 
-    function moveSelection(step: 1 | -1): boolean {
-        const count = view.locations.length;
-        if (count === 0) return false;
-        const current = view.locations.findIndex(l => l.id === selectedId);
-        const next = current === -1 ? (step === 1 ? 0 : count - 1) : (current + step + count) % count;
-        const id = view.locations[next]!.id;
-        select(id);
-        revealMarker(id);
+    // Move to the marker that's that way on the map. With nothing selected yet, this starts from the player's own
+    // location (or the middle of the map), and always selects something.
+    function moveSelection(direction: Direction): boolean {
+        const places = view.locations;
+        if (places.length === 0) return false;
+        const selected = places.find(l => l.id === selectedId);
+        const start = selected ?? places.find(l => l.current);
+        const from = start ?? { x: view.width / 2, y: view.height / 2 };
+        const next = neighbor(from, places, direction, start?.id) ?? (selected ? undefined : nearest(from, places, start?.id));
+        if (next) {
+            select(next.id);
+            revealMarker(next.id);
+        }
         return true;
     }
 
     function handleAction(action: InputAction): boolean {
         switch (action.kind) {
             case "move":
-                return moveSelection(action.step);
+                return moveSelection(action.direction);
             case "confirm": {
                 const location = selectedLocation();
                 if (!handlers.onTravel || !location?.travelable) return false;
