@@ -31,6 +31,7 @@ export function newGame(content: Content, startNode: string, rng: Rng, contentVe
 }
 
 export function step(content: Content, state: GameState, optionIndex: number, rng: Rng): GameState {
+    if (state.screen.kind !== "node") throw new RuntimeError(`Options can't be chosen while a ${state.screen.kind} is open`);
     const s = structuredClone(state);
     if (s.pending) {
         if (optionIndex !== 0) throw new RuntimeError("Only 'Continue' is available here");
@@ -69,7 +70,7 @@ export function sceneView(content: Content, state: GameState, rng: Rng): SceneVi
     return { latestEntry, options, presentation: resolvePresentation(content, state, rng) };
 }
 
-function advance(s: GameState, content: Content, rng: Rng, first: Transition | undefined, pieces: string[], label: string | undefined): void {
+export function advance(s: GameState, content: Content, rng: Rng, first: Transition | undefined, pieces: string[], label: string | undefined): void {
     let transition = first;
     let count = 0;
     while (transition) {
@@ -109,7 +110,7 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
             return evaluateProse(frame.onReturn, { content, state: s, bindings: frame.bindings, rng });
         }
         case "open_map":
-            s.screen = { kind: "map", map: t.map, canTravel: true };
+            s.screen = { kind: "map", map: t.map };
             return { text: "" };
         case "open_shop":
             s.screen = { kind: "shop", shop: t.shop };
@@ -152,7 +153,7 @@ function computeOptions(s: GameState, content: Content, rng: Rng): AvailableOpti
 const PRESENTATION_FIELDS = ["image", "theme", "location", "music", "ambience"] as const;
 type FieldName = (typeof PRESENTATION_FIELDS)[number];
 
-function resolvePresentation(content: Content, state: GameState, rng: Rng): PresentationState {
+export function resolvePresentation(content: Content, state: GameState, rng: Rng): PresentationState {
     const chain = [...state.stack.map(frame => frame.node), state.node];
     const result: PresentationState = { image: null, theme: null, location: null, music: null, ambience: null };
     const ctx: EvalContext = { content, state, bindings: {}, rng };

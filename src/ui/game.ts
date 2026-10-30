@@ -1,8 +1,10 @@
 import { loadContent, type SourceFile } from "../engine/load";
+import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, sceneView, step } from "../engine/step";
 import type { OptionView } from "../engine/types";
 import { inlineHtml, textToHtml } from "./formatText";
 import { listenForInput, type InputAction } from "./input";
+import { createMapScreen } from "./mapScreen";
 import { settings } from "./settings";
 import { canType, typeText } from "./typewriter";
 
@@ -10,6 +12,9 @@ export interface GamePage {
     story: HTMLElement;
     options: HTMLElement;
     status: HTMLElement;
+    map: HTMLElement;
+    mapButton: HTMLElement;
+    background: HTMLElement; // everything behind the map screen
 }
 
 const rng = Math.random;
@@ -28,13 +33,19 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     let visibleOptions: OptionView[] = [];
     let skipTyping: (() => void) | undefined;
     let usingKeyboard = false;
-    function showScene(): void {
+    const mapScreen = createMapScreen(page.map, page.background);
+    function showScene(animate = true): void {
+        if (state.screen.kind === "map") {
+            openTravelMap();
+            return;
+        }
+        mapScreen.hide();
         const view = sceneView(content, state, rng);
         visibleOptions = [];
         document.documentElement.dataset.theme = view.presentation.theme ?? "";
         page.story.innerHTML = textToHtml(view.latestEntry.text);
         page.options.replaceChildren();
-        if (canType() && settings.typingCharsPerSecond > 0) {
+        if (animate && canType() && settings.typingCharsPerSecond > 0) {
             skipTyping = typeText(page.story, settings.typingCharsPerSecond, () => {
                 skipTyping = undefined;
                 showOptions(view.options);
@@ -76,8 +87,40 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         showScene();
     }
+    // The map the story opened, which the player can travel from.
+    function openTravelMap(): void {
+        if (state.screen.kind !== "map") return;
+        mapScreen.show(mapView(content, state, state.screen.map, rng), {
+            onTravel: locationId => attempt(() => {
+                state = travel(content, state, locationId, rng);
+                showScene();
+            }),
+            onClose: () => attempt(() => {
+                state = closeMap(state);
+                showScene(false); // the player has already read this scene
+            }),
+        });
+    }
+    // A look at the map the player is near, at any time. It never changes the game.
+    function openReadOnlyMap(): boolean {
+        const mapId = defaultMapId(content, state, rng);
+        if (mapScreen.isOpen() || state.screen.kind !== "node" || mapId === undefined) return false;
+        skipTyping?.();
+        mapScreen.show(mapView(content, state, mapId, rng), { onClose: () => mapScreen.hide() });
+        return true;
+    }
+    function attempt(action: () => void): void {
+        page.status.textContent = "";
+        try {
+            action();
+        } catch (e) {
+            page.status.textContent = e instanceof Error ? e.message : String(e);
+        }
+    }
     function handleAction(action: InputAction): boolean {
         usingKeyboard = true;
+        if (mapScreen.isOpen()) return mapScreen.handleAction(action);
+        if (action.kind === "map") return openReadOnlyMap();
         if (skipTyping) {
             if (action.kind !== "confirm") return false;
             skipTyping();
@@ -96,6 +139,9 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
                 if (option) choose(option);
                 return option !== undefined;
             }
+            case "cancel":
+            case "zoom":
+                return false;
         }
     }
     function moveSelection(step: 1 | -1): boolean {
@@ -106,6 +152,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         buttons[next]!.focus();
         return true;
     }
+    page.mapButton.addEventListener("click", () => openReadOnlyMap());
     document.addEventListener("click", () => skipTyping?.(), { capture: true });
     document.addEventListener("mousemove", event => {
         if (mouseMoved(event)) usingKeyboard = false;

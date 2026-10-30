@@ -2,7 +2,7 @@ import { DIRECTIVE_WORDS, EFFECT_WORDS } from "./parseDirective";
 import { DIRECTIVE_MARK } from "./parseProse";
 import { parseStoryFile, STORY_WORDS } from "./parseStoryFile";
 import { parseFile, type FileDeclarations, type LoadError, type Located, type SourceFile } from "./parseFile";
-import type { Branch, Content, Effect, Expr, ItemDef, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, ProsePart, TagExpr, VarDecl } from "./types";
+import type { Branch, Content, Effect, Expr, ItemDef, Node, NodePresentation, Option, OptionResult, MapDef, PresentationDecl, PresentationField, Prose, ProsePart, TagExpr, VarDecl } from "./types";
 
 export type { LoadError, SourceFile } from "./parseFile";
 
@@ -12,6 +12,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     const items: Located<ItemDef>[] = [];
     const vars: Located<VarDecl>[] = [];
     const presets: Located<{ name: string; decl: PresentationDecl }>[] = [];
+    const maps: Located<MapDef>[] = [];
     for (const file of files) {
         const result = parseSourceFile(file);
         errors.push(...result.errors);
@@ -19,12 +20,14 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         items.push(...result.declarations.items);
         vars.push(...result.declarations.vars);
         presets.push(...result.declarations.presets);
+        maps.push(...result.declarations.maps);
     }
     const content: Content = {
         nodes: collect(nodes, n => n.id, "node", errors),
         items: collect(items, i => i.id, "item", errors),
         vars: collect(vars, v => v.name, "variable", errors),
-        presets: Object.fromEntries(Object.entries(collect(presets, p => p.name, "preset", errors)).map(([name, p]) => [name, p.decl]))
+        presets: Object.fromEntries(Object.entries(collect(presets, p => p.name, "preset", errors)).map(([name, p]) => [name, p.decl])),
+        maps: collect(maps, m => m.id, "map", errors)
     };
     checkVariableNames(vars, content, errors);
     const resolver = new Resolver(content, errors);
@@ -32,6 +35,10 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         if (content.nodes[located.value.id] === located.value) {
             content.nodes[located.value.id] = resolver.node(located);
         }
+    }
+    for (const located of maps) {
+        const { id } = located.value;
+        if (content.maps[id] === located.value) content.maps[id] = resolver.map(located);
     }
     for (const located of presets) {
         const { name } = located.value;
@@ -107,6 +114,7 @@ interface Unresolved {
 class Resolver {
     private readonly tags = new Set<string>();
     private readonly resetGroups = new Set<string>();
+    private readonly locationIds = new Set<string>();
     private location: { file: string; line: number } = { file: "", line: 1 };
     private where = "";
 
@@ -115,6 +123,24 @@ class Resolver {
             item.tags.forEach(tag => this.tags.add(tag));
             if (item.charges) this.resetGroups.add(item.charges.reset);
         }
+        for (const map of Object.values(content.maps)) {
+            map.locations.forEach(location => this.locationIds.add(location.id));
+        }
+    }
+
+    map(located: Located<MapDef>): MapDef {
+        const map = located.value;
+        this.location = located;
+        const scope: Scope = { nodeId: null, bindings: new Set() };
+        const locations = map.locations.map(location => {
+            this.where = `location '${location.id}' of map '${map.id}'`;
+            this.checkNode(location.node);
+            if (location.requires === undefined) return location;
+            const { expr, bindings } = this.condition(location.requires, scope);
+            if (bindings.length > 0) this.error("Item bindings can't be made in a location's requirement");
+            return { ...location, requires: expr };
+        });
+        return { ...map, locations };
     }
 
     node(located: Located<Node>): Node {
@@ -174,6 +200,11 @@ class Resolver {
                 if (bindings.length > 0) this.error("Item bindings can't be made in presentation conditions");
                 return { when: expr, value: entry.value };
             });
+        for (const entry of result.location ?? []) {
+            if (entry.value !== null && !this.locationIds.has(entry.value)) {
+                this.error(`Unknown location '${entry.value}' (no map has a location with that id)`);
+            }
+        }
         if (result.image) result.image = field(result.image)!;
         if (result.theme) result.theme = field(result.theme)!;
         if (result.location) result.location = field(result.location)!;
@@ -257,10 +288,12 @@ class Resolver {
                 if (effect.onReturn === undefined) return effect;
                 return { ...effect, onReturn: this.prose(effect.onReturn, scope) };
             }
-            case "return":
             case "open_map":
+                if (!this.content.maps[effect.map]) this.error(`Unknown map '${effect.map}'`);
+                return effect;
+            case "return":
             case "open_shop":
-                return effect; // TODO - maps/shops must be added to Content first
+                return effect; // TODO - shops must be added to Content first
         }
     }
 

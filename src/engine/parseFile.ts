@@ -1,5 +1,5 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
-import type { AmbienceState, Difficulty, Expr, ItemDef, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
+import type { AmbienceState, Difficulty, Expr, ItemDef, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
 import { tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { parseProse } from "./parseProse";
@@ -27,6 +27,7 @@ export interface FileDeclarations {
     items: Located<ItemDef>[];
     vars: Located<VarDecl>[];
     presets: Located<{ name: string; decl: PresentationDecl }>[];
+    maps: Located<MapDef>[];
 }
 
 export function parseFile(file: SourceFile): { declarations: FileDeclarations; errors: LoadError[] } {
@@ -39,7 +40,7 @@ export const DIFFICULTIES = new Set<string>(["likely", "even", "unlikely"]);
 class FileParser {
     private readonly lineCounter = new LineCounter();
     private readonly errors: LoadError[] = [];
-    private readonly declarations: FileDeclarations = { nodes: [], items: [], vars: [], presets: [] };
+    private readonly declarations: FileDeclarations = { nodes: [], items: [], vars: [], presets: [], maps: [] };
 
     constructor(private readonly file: SourceFile) {}
 
@@ -55,11 +56,12 @@ class FileParser {
             this.error(root, "A content file must be a map");
             return this.result();
         }
-        const fields = this.fields(root, ["vars", "nodes", "items", "presets"], "the top level of the file");
+        const fields = this.fields(root, ["vars", "nodes", "items", "presets", "maps"], "the top level of the file");
         this.forEachEntry(fields.get("vars"), "vars", (name, node) => this.parseVar(name, node, null));
         this.forEachEntry(fields.get("nodes"), "nodes", (id, node) => this.parseNode(id, node));
         this.forEachEntry(fields.get("items"), "items", (id, node) => this.parseItem(id, node));
         this.forEachEntry(fields.get("presets"), "presets", (name, node) => this.parsePreset(name, node));
+        this.forEachEntry(fields.get("maps"), "maps", (id, node) => this.parseMap(id, node));
         return this.result();
     }
 
@@ -337,6 +339,62 @@ class FileParser {
         }
         if (charges) item.charges = charges;
         this.declarations.items.push(this.locate(item, node));
+    }
+
+    private parseMap(id: string, node: YamlNode | null): void {
+        const where = `map '${id}'`;
+        if (!isMap(node)) return this.error(node, `${where} must be a map`);
+        const fields = this.fields(node, ["image", "width", "height", "locations"], where);
+
+        const imageNode = this.required(fields, "image", node, where);
+        const widthNode = this.required(fields, "width", node, where);
+        const heightNode = this.required(fields, "height", node, where);
+        const image = imageNode === undefined ? undefined : this.string(imageNode, `the image of ${where}`);
+        const width = widthNode === undefined ? undefined : this.integer(widthNode, `the width of ${where}`);
+        const height = heightNode === undefined ? undefined : this.integer(heightNode, `the height of ${where}`);
+        if (width !== undefined && width <= 0) this.error(widthNode ?? node, `The width of ${where} must be more than 0`);
+        if (height !== undefined && height <= 0) this.error(heightNode ?? node, `The height of ${where} must be more than 0`);
+
+        const locations: MapLocation[] = [];
+        this.forEachEntry(fields.get("locations"), `the locations of ${where}`, (locationId, locationNode) => {
+            const location = this.parseLocation(locationId, locationNode, where);
+            if (!location) return;
+            const outside = (location.x < 0 || location.x > (width ?? Infinity)) || (location.y < 0 || location.y > (height ?? Infinity));
+            if (outside) this.error(locationNode, `Location '${locationId}' is outside the ${width} x ${height} image of ${where}`);
+            locations.push(location);
+        });
+
+        if (image === undefined || width === undefined || height === undefined) return;
+        this.declarations.maps.push(this.locate({ id, image, width, height, locations }, node));
+    }
+
+    private parseLocation(id: string, node: YamlNode | null, mapWhere: string): MapLocation | undefined {
+        const where = `location '${id}' of ${mapWhere}`;
+        if (!isMap(node)) {
+            this.error(node, `${where} must be a map`);
+            return undefined;
+        }
+        const fields = this.fields(node, ["name", "description", "x", "y", "node", "requires"], where);
+
+        const nameNode = this.required(fields, "name", node, where);
+        const xNode = this.required(fields, "x", node, where);
+        const yNode = this.required(fields, "y", node, where);
+        const targetNode = this.required(fields, "node", node, where);
+        const name = nameNode === undefined ? undefined : this.string(nameNode, `the name of ${where}`);
+        const x = xNode === undefined ? undefined : this.integer(xNode, `x of ${where}`);
+        const y = yNode === undefined ? undefined : this.integer(yNode, `y of ${where}`);
+        const target = targetNode === undefined ? undefined : this.string(targetNode, `the node of ${where}`);
+        const description = fields.has("description") ? this.string(fields.get("description") ?? null, `the description of ${where}`) : "";
+        if (name === undefined || x === undefined || y === undefined || target === undefined || description === undefined) return undefined;
+
+        const location: MapLocation = { id, name, description, x, y, node: target };
+        const requiresNode = fields.get("requires");
+        if (requiresNode !== undefined) {
+            const requires = this.expression(requiresNode, `the requirement of ${where}`);
+            if (!requires) return undefined;
+            location.requires = requires;
+        }
+        return location;
     }
 
     private parsePreset(name: string, node: YamlNode | null): void {

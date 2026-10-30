@@ -151,11 +151,33 @@ export type ItemDef = ItemBase & (
 
 // Loaded content
 
+// Maps
+
+export interface MapLocation {
+    id: string; // what nodes name in their {location} presentation, so the map can show "you are here"
+    name: string;
+    description: string;
+    x: number; // pixels in the map's image
+    y: number;
+    node: string; // the node that traveling here enters
+    requires?: Expr; // the location only appears on the map while this is true
+}
+
+export interface MapDef {
+    id: string;
+    image: string;
+    width: number; // the image's size in pixels, so positions can be placed on it at any display size
+    height: number;
+    locations: MapLocation[];
+}
+
+
 export interface Content {
     nodes: Record<string, Node>;
     items: Record<string, ItemDef>;
     vars: Record<string, VarDecl>;
     presets: Record<string, PresentationDecl>;
+    maps: Record<string, MapDef>;
 }
 
 
@@ -190,7 +212,7 @@ export interface StackFrame {
 
 export type Screen =
     | { kind: "node" }
-    | { kind: "map"; map: string; canTravel: boolean }
+    | { kind: "map"; map: string }
     | { kind: "shop"; shop: string };
 
 export interface SaveData {
@@ -230,4 +252,21 @@ export interface SceneView {
     latestEntry: HistoryEntry;
     options: OptionView[];
     presentation: PresentationState;
+}
+
+export interface MapLocationView {
+    id: string;
+    name: string;
+    description: string;
+    x: number;
+    y: number;
+    current: boolean; // the player's current location, for "you are here"
+}
+
+export interface MapView {
+    id: string;
+    image: string;
+    width: number;
+    height: number;
+    locations: MapLocationView[]; // only the locations available right now
 }

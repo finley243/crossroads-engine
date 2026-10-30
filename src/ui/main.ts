@@ -12,4 +12,11 @@ function element(id: string): HTMLElement {
     return found;
 }
 
-startGame({ story: element("story"), options: element("options"), status: element("status") }, sources, START_NODE);
+startGame({
+    story: element("story"),
+    options: element("options"),
+    status: element("status"),
+    map: element("map-screen"),
+    mapButton: element("map-button"),
+    background: element("game"),
+}, sources, START_NODE);

@@ -1,0 +1,25 @@
+maps:
+  city:
+    image: city_map.png
+    width: 2880
+    height: 1503
+    locations:
+      alley:
+        name: The Alley
+        description: Behind the noodle bar.
+        x: 1200
+        y: 900
+        node: start
+      market:
+        name: Kesh Market
+        description: Noodle stalls and bootleg optics.
+        x: 2100
+        y: 1400
+        node: market
+      halvorsen:
+        name: Halvorsen Recovery
+        description: A repo storefront in the industrial district.
+        x: 800
+        y: 1300
+        node: repo
+        requires: door_open

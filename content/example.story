@@ -1,5 +1,6 @@
 {node start}
 {var searched = false}
+{location alley}
 
 Rain hammers the alley behind the noodle bar. A steel door is set into
 the wall, and next to it, a vending machine hums and flickers.
@@ -29,6 +30,11 @@ Visit the vending machine
     {failure}
         The {c.short} slips and you slam your knuckles into the steel.
         {do mood = shaken}
+
+{>}
+Leave the alley
+{then}
+    {do open_map city}
 
 {> if not door_open}
 Knock

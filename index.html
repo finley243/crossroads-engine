@@ -7,11 +7,13 @@
         <link rel="stylesheet" href="/src/ui/style.css">
     </head>
     <body>
-        <main>
+        <main id="game">
+            <button id="map-button" type="button">Map</button>
             <div id="story"></div>
             <div id="options"></div>
             <div id="status"></div>
         </main>
+        <div id="map-screen" class="map-screen" role="dialog" aria-modal="true" aria-label="Map" tabindex="-1" hidden></div>
         <script type="module" src="/src/ui/main.ts"></script>
     </body>
 </html>

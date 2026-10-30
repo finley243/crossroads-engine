@@ -4,8 +4,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { loadContent, type SourceFile } from "../engine/load";
+import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, sceneView, SCENE_BREAK, step } from "../engine/step";
-import type { Content, GameState } from "../engine/types";
+import type { Content, GameState, MapView } from "../engine/types";
 import { LITERAL_ASTERISK } from "../engine/scan";
 
 
@@ -41,6 +42,16 @@ function show(content: Content, state: GameState): void {
     view.options.forEach((option, i) => console.log(`  ${i + 1}. ${style(option.label)}`));
 }
 
+function showMap(view: MapView, canTravel: boolean): void {
+    console.log(`\n${BOLD}Map: ${view.id}${RESET}`);
+    view.locations.forEach((location, i) => {
+        const here = location.current ? ` ${DIM}(you are here)${RESET}` : "";
+        const description = location.description ? ` ${DIM}- ${location.description}${RESET}` : "";
+        console.log(`  ${i + 1}. ${location.name}${here}${description}`);
+    });
+    if (canTravel) console.log(`  ${view.locations.length + 1}. Cancel`);
+}
+
 async function main(): Promise<void> {
     const files = readContent(contentDir);
     const { content, errors } = loadContent(files);
@@ -63,6 +74,27 @@ async function main(): Promise<void> {
     let state = newGame(content, startNode, rng);
     show(content, state);
     for (;;) {
+        if (state.screen.kind === "map") {
+            const map = mapView(content, state, state.screen.map, rng);
+            showMap(map, true);
+            const input = await ask();
+            if (input === null || input === "q" || input === "quit") break;
+            const number = Number(input);
+            try {
+                if (number === map.locations.length + 1) {
+                    state = closeMap(state);
+                    show(content, state);
+                } else if (map.locations[number - 1]) {
+                    state = travel(content, state, map.locations[number - 1]!.id, rng);
+                    show(content, state);
+                } else {
+                    console.log(`Enter a number from 1 to ${map.locations.length + 1} (or q to quit).`);
+                }
+            } catch (e) {
+                console.error(`\n${BOLD}Error:${RESET} ${e instanceof Error ? e.message : String(e)}`);
+            }
+            continue;
+        }
         const view = sceneView(content, state, rng);
         if (view.options.length === 0) {
             console.log(`${DIM}(No options left. The end.)${RESET}`);
@@ -78,14 +110,20 @@ async function main(): Promise<void> {
             console.log(JSON.stringify(state.vars, null, 2));
             continue;
         }
+        if (input === "m") {
+            const mapId = defaultMapId(content, state, rng);
+            if (mapId) showMap(mapView(content, state, mapId, rng), false);
+            else console.log("There are no maps.");
+            continue;
+        }
         const choice = view.options[Number(input) - 1];
         if (!choice) {
-            console.log(`Enter a number from 1 to ${view.options.length} (or i for inventory, v for variables, q to quit).`);
+            console.log(`Enter a number from 1 to ${view.options.length} (or i for inventory, v for variables, m for the map, q to quit).`);
             continue;
         }
         try {
             state = step(content, state, choice.index, rng);
-            show(content, state);
+            if (state.screen.kind === "node") show(content, state); // a map is shown by the next pass of the loop
         } catch (e) {
             console.error(`\n${BOLD}Error:${RESET} ${e instanceof Error ? e.message : String(e)}`);
         }

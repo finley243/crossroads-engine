@@ -134,3 +134,226 @@ main {
         animation: none;
     }
 }
+/* The map screen: a full-screen overlay with the map on top and details about the chosen place below. */
+.map-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    background: var(--background);
+    outline: none;
+}
+
+.map-screen[hidden] {
+    display: none;
+}
+
+.map-area {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+}
+
+.map-frame {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--button);
+}
+
+.map-canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.map-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+    pointer-events: none;
+}
+
+/* Shown if the image can't be loaded, so the markers are still usable. */
+.map-canvas.no-image {
+    background-image:
+        linear-gradient(var(--button-hover) 1px, transparent 1px),
+        linear-gradient(90deg, var(--button-hover) 1px, transparent 1px);
+    background-size: 10% 10%;
+}
+
+/* A marker is a point at its location. It's scaled by 1 / zoom around that point, so it stays the same size on screen. */
+.map-marker {
+    position: absolute;
+    left: calc(var(--x) * 100%);
+    top: calc(var(--y) * 100%);
+    width: 0;
+    height: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    transform: scale(calc(1 / var(--zoom, 1)));
+    transform-origin: 0 0;
+    cursor: pointer;
+    outline: none;
+}
+
+.map-marker-dot {
+    position: absolute;
+    left: -9px;
+    top: -9px;
+    width: 18px;
+    height: 18px;
+    box-sizing: border-box;
+    border: 2px solid var(--background);
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+    transition: transform 0.15s;
+}
+
+.map-marker.selected .map-marker-dot,
+.map-marker:focus-visible .map-marker-dot {
+    transform: scale(1.4);
+    border-color: var(--text);
+}
+
+/* "You are here" is a ring that pulses. */
+.map-marker.current .map-marker-dot::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border: 2px solid var(--text);
+    border-radius: 50%;
+    animation: pulse 1.8s ease-out infinite;
+}
+
+@keyframes pulse {
+    from {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+    to {
+        transform: scale(1.3);
+        opacity: 0;
+    }
+}
+
+.map-marker-label {
+    position: absolute;
+    left: 16px;
+    top: -0.85rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+
+.map-marker:hover .map-marker-label,
+.map-marker.selected .map-marker-label,
+.map-marker.current .map-marker-label {
+    opacity: 1;
+}
+
+.map-panel {
+    flex: none;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 0.5rem 1.25rem 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.map-info {
+    flex: 1 1 14rem;
+    min-width: 0;
+    min-height: 4.5rem;
+}
+
+.map-info h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+    font-weight: normal;
+}
+
+.map-info p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+.map-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.map-actions button {
+    font: inherit;
+    color: var(--text);
+    background: var(--button);
+    border: 1px solid transparent;
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.map-actions button[hidden] {
+    display: none;
+}
+
+.map-actions button:hover:not(:disabled),
+.map-actions button:focus-visible {
+    background: var(--button-hover);
+    outline: none;
+}
+
+.map-actions button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* A way to look at the map at any time. */
+#map-button {
+    position: fixed;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 5;
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--muted);
+    border-radius: 4px;
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+}
+
+#map-button:hover,
+#map-button:focus-visible {
+    color: var(--text);
+    border-color: var(--text);
+    outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .map-marker.current .map-marker-dot::after {
+        animation: none;
+    }
+}
