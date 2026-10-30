@@ -33,6 +33,10 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     let visibleOptions: OptionView[] = [];
     let skipTyping: (() => void) | undefined;
     let usingKeyboard = false;
+    function setUsingKeyboard(value: boolean): void {
+        usingKeyboard = value;
+        document.documentElement.classList.toggle("keyboard-nav", value); // hides the mouse cursor, until the mouse is used
+    }
     const mapScreen = createMapScreen(page.map, page.background);
     function showScene(animate = true): void {
         if (state.screen.kind === "map") {
@@ -122,7 +126,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
     }
     function handleAction(action: InputAction): boolean {
-        usingKeyboard = true;
+        setUsingKeyboard(true);
         if (mapScreen.isOpen()) return mapScreen.handleAction(action);
         if (action.kind === "map") return openReadOnlyMap();
         if (skipTyping) {
@@ -159,10 +163,14 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     page.mapButton.addEventListener("click", () => openReadOnlyMap());
     document.addEventListener("click", () => skipTyping?.(), { capture: true });
     document.addEventListener("mousemove", event => {
-        if (mouseMoved(event)) usingKeyboard = false;
+        if (mouseMoved(event)) setUsingKeyboard(false);
     });
-    document.addEventListener("pointerdown", () => {
-        usingKeyboard = false;
+    document.addEventListener("pointerdown", event => {
+        setUsingKeyboard(false);
+        // Focus a button as soon as it's pressed, since that's what highlights it. Touch screens (and Safari) only
+        // focus it later, after the press has ended, by which time the click has already changed the screen.
+        const button = event.target instanceof Element ? event.target.closest("button:not(.map-marker)") : null;
+        if (button instanceof HTMLButtonElement && !button.disabled) button.focus({ preventScroll: true });
     });
     listenForInput(handleAction);
     showScene();

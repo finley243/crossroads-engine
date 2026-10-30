@@ -1,7 +1,7 @@
-import Panzoom, { type PanzoomObject } from "@panzoom/panzoom";
 import type { MapLocationView, MapView } from "../engine/types";
 import { imageUrl } from "./images";
 import type { InputAction } from "./input";
+import { createViewport, type Viewport } from "./viewport";
 
 export interface MapScreenHandlers {
     onTravel?: (locationId: string) => void; // only given when the player can travel from this map
@@ -24,7 +24,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
     let open = false;
     let view: MapView;
     let handlers: MapScreenHandlers;
-    let panzoom: PanzoomObject | undefined;
+    let viewport: Viewport | undefined;
     let resizeObserver: ResizeObserver | undefined;
     let selectedId: string | undefined;
     let pressedAt = { x: 0, y: 0 };
@@ -45,7 +45,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         open = true;
 
         fitFrame();
-        startPanzoom();
+        viewport = createViewport(area, frame, canvas, { minScale: 1, maxScale: MAX_ZOOM });
         resizeObserver = new ResizeObserver(() => {
             if (area.clientWidth !== fittedTo.width || area.clientHeight !== fittedTo.height) refitFrame();
         });
@@ -58,8 +58,8 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         if (!open) return;
         open = false;
         resizeObserver?.disconnect();
-        panzoom?.destroy();
-        panzoom = undefined;
+        viewport?.destroy();
+        viewport = undefined;
         markers.clear();
         root.replaceChildren();
         root.hidden = true;
@@ -106,10 +106,9 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
             canvas.append(marker);
         }
 
-        // In the capture phase, because Panzoom stops this event before it can bubble up from the map.
         frame.addEventListener("pointerdown", event => {
             pressedAt = { x: event.clientX, y: event.clientY };
-        }, { capture: true });
+        });
         travelButton.hidden = handlers.onTravel === undefined;
         travelButton.addEventListener("click", travelToSelected);
         closeButton.textContent = handlers.onTravel ? "Cancel" : "Close";
@@ -131,29 +130,8 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
 
     // The window changed size. The map gets resized to fit, and keeps the same zoom and the same part in view.
     function refitFrame(): void {
-        const oldWidth = frame.offsetWidth;
         fitFrame();
-        if (!panzoom || oldWidth === 0) return;
-        const ratio = frame.offsetWidth / oldWidth;
-        const pan = panzoom.getPan();
-        panzoom.pan(pan.x * ratio, pan.y * ratio, { animate: false }); // the pan is in the map's own pixels, which just scaled
-    }
-
-    function startPanzoom(): void {
-        const instance = Panzoom(canvas, { minScale: 1, maxScale: MAX_ZOOM, contain: "outside", cursor: "grab", step: 0.4 });
-        // Zoom by how far the wheel turned, so a trackpad's many small events and a mouse's few big ones feel alike.
-        frame.addEventListener("wheel", event => {
-            event.preventDefault();
-            const lines = event.deltaMode === 1 ? 16 : 1; // some mice scroll in lines rather than pixels
-            const sensitivity = event.ctrlKey ? 0.01 : 0.002; // a trackpad pinch arrives as a wheel event with ctrl held
-            const factor = Math.exp(-event.deltaY * lines * sensitivity);
-            instance.zoomToPoint(instance.getScale() * factor, { clientX: event.clientX, clientY: event.clientY }, { animate: false });
-        }, { passive: false });
-        // Markers divide by the zoom, so they stay the same size on screen while the map grows.
-        canvas.addEventListener("panzoomchange", event => {
-            canvas.style.setProperty("--zoom", String((event as CustomEvent).detail.scale));
-        });
-        panzoom = instance;
+        viewport?.resize(frame.clientWidth, frame.clientHeight);
     }
 
     function select(id: string): void {
@@ -185,20 +163,13 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
     // Keep a marker chosen with the keyboard in view, panning to it if it's near or past the edge.
     function revealMarker(id: string): void {
         const marker = markers.get(id);
-        if (!marker || !panzoom) return;
+        if (!marker || !viewport) return;
         const frameBox = frame.getBoundingClientRect();
         const box = marker.getBoundingClientRect();
-        const x = box.left;
-        const y = box.top;
         const margin = 64;
-        const visible = x > frameBox.left + margin && x < frameBox.right - margin && y > frameBox.top + margin && y < frameBox.bottom - margin;
+        const visible = box.left > frameBox.left + margin && box.left < frameBox.right - margin && box.top > frameBox.top + margin && box.top < frameBox.bottom - margin;
         if (visible) return;
-
-        const scale = panzoom.getScale();
-        const pan = panzoom.getPan();
-        const toCenterX = frameBox.left + frameBox.width / 2 - x;
-        const toCenterY = frameBox.top + frameBox.height / 2 - y;
-        panzoom.pan(pan.x + toCenterX / scale, pan.y + toCenterY / scale, { animate: true });
+        viewport.panBy(frameBox.left + frameBox.width / 2 - box.left, frameBox.top + frameBox.height / 2 - box.top);
     }
 
     function moveSelection(step: 1 | -1): boolean {
@@ -231,8 +202,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
                 handlers.onClose();
                 return true;
             case "zoom":
-                if (action.step > 0) panzoom?.zoomIn();
-                else panzoom?.zoomOut();
+                viewport?.zoomBy(Math.exp(0.4 * action.step));
                 return true;
             case "choose":
                 return false;
