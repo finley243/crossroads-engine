@@ -69,6 +69,8 @@ main {
 #story {
     align-self: center;
     padding: 2.5rem 0 1.5rem;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 #story p {
@@ -138,6 +140,8 @@ main {
     font-family: monospace;
     font-size: 0.95rem;
     white-space: pre-wrap;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 @keyframes appear {
