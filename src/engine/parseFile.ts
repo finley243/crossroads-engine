@@ -1,5 +1,5 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
-import type { AmbienceState, Difficulty, Expr, ItemDef, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
+import type { AmbienceState, Difficulty, EncounterEntry, EncounterTable, Expr, ItemDef, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
 import { tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { parseProse } from "./parseProse";
@@ -28,6 +28,7 @@ export interface FileDeclarations {
     vars: Located<VarDecl>[];
     presets: Located<{ name: string; decl: PresentationDecl }>[];
     maps: Located<MapDef>[];
+    encounters: Located<EncounterTable>[];
 }
 
 export function parseFile(file: SourceFile): { declarations: FileDeclarations; errors: LoadError[] } {
@@ -40,7 +41,7 @@ export const DIFFICULTIES = new Set<string>(["likely", "even", "unlikely"]);
 class FileParser {
     private readonly lineCounter = new LineCounter();
     private readonly errors: LoadError[] = [];
-    private readonly declarations: FileDeclarations = { nodes: [], items: [], vars: [], presets: [], maps: [] };
+    private readonly declarations: FileDeclarations = { nodes: [], items: [], vars: [], presets: [], maps: [], encounters: [] };
 
     constructor(private readonly file: SourceFile) {}
 
@@ -56,12 +57,13 @@ class FileParser {
             this.error(root, "A content file must be a map");
             return this.result();
         }
-        const fields = this.fields(root, ["vars", "nodes", "items", "presets", "maps"], "the top level of the file");
+        const fields = this.fields(root, ["vars", "nodes", "items", "presets", "maps", "encounters"], "the top level of the file");
         this.forEachEntry(fields.get("vars"), "vars", (name, node) => this.parseVar(name, node, null));
         this.forEachEntry(fields.get("nodes"), "nodes", (id, node) => this.parseNode(id, node));
         this.forEachEntry(fields.get("items"), "items", (id, node) => this.parseItem(id, node));
         this.forEachEntry(fields.get("presets"), "presets", (name, node) => this.parsePreset(name, node));
         this.forEachEntry(fields.get("maps"), "maps", (id, node) => this.parseMap(id, node));
+        this.forEachEntry(fields.get("encounters"), "encounters", (id, node) => this.parseEncounterTable(id, node));
         return this.result();
     }
 
@@ -344,7 +346,7 @@ class FileParser {
     private parseMap(id: string, node: YamlNode | null): void {
         const where = `map '${id}'`;
         if (!isMap(node)) return this.error(node, `${where} must be a map`);
-        const fields = this.fields(node, ["image", "width", "height", "locations"], where);
+        const fields = this.fields(node, ["image", "width", "height", "locations", "encounters"], where);
 
         const imageNode = this.required(fields, "image", node, where);
         const widthNode = this.required(fields, "width", node, where);
@@ -364,8 +366,12 @@ class FileParser {
             locations.push(location);
         });
 
+        const encounters = fields.has("encounters") ? this.encounterRef(fields.get("encounters") ?? null, `the encounters of ${where}`) : undefined;
+
         if (image === undefined || width === undefined || height === undefined) return;
-        this.declarations.maps.push(this.locate({ id, image, width, height, locations }, node));
+        const map: MapDef = { id, image, width, height, locations };
+        if (encounters !== undefined) map.encounters = encounters;
+        this.declarations.maps.push(this.locate(map, node));
     }
 
     private parseLocation(id: string, node: YamlNode | null, mapWhere: string): MapLocation | undefined {
@@ -374,7 +380,7 @@ class FileParser {
             this.error(node, `${where} must be a map`);
             return undefined;
         }
-        const fields = this.fields(node, ["name", "description", "x", "y", "node", "requires", "unlocked", "locked_note"], where);
+        const fields = this.fields(node, ["name", "description", "x", "y", "node", "requires", "unlocked", "locked_note", "encounters"], where);
 
         const nameNode = this.required(fields, "name", node, where);
         const xNode = this.required(fields, "x", node, where);
@@ -407,7 +413,69 @@ class FileParser {
             if (note === undefined) return undefined;
             location.lockedNote = note;
         }
+        if (fields.has("encounters")) {
+            const encounters = this.encounterRef(fields.get("encounters") ?? null, `the encounters of ${where}`);
+            if (encounters !== undefined) location.encounters = encounters;
+        }
         return location;
+    }
+
+    // The name of an encounter table, or "none" for no encounters at all (which comes out as null).
+    private encounterRef(node: YamlNode | null, where: string): string | null | undefined {
+        const name = this.string(node, where);
+        if (name === undefined) return undefined;
+        return name === "none" ? null : name;
+    }
+
+    private parseEncounterTable(id: string, node: YamlNode | null): void {
+        const where = `encounter table '${id}'`;
+        if (!isMap(node)) return this.error(node, `${where} must be a map with 'entries', and optionally 'nothing'`);
+        if (id === "none") this.error(node, "'none' can't be the name of an encounter table, since it means no encounters");
+        const fields = this.fields(node, ["nothing", "entries"], where);
+
+        const nothing = fields.has("nothing") ? this.weight(fields.get("nothing") ?? null, `the 'nothing' weight of ${where}`, true) : 0;
+        const entriesNode = this.required(fields, "entries", node, where);
+        if (entriesNode === undefined) return;
+        if (!isSeq(entriesNode)) return this.error(entriesNode, `The entries of ${where} must be a list`);
+        const entries: EncounterEntry[] = [];
+        (entriesNode.items as (YamlNode | null)[]).forEach((item, index) => {
+            const entry = this.parseEncounterEntry(item, index, where);
+            if (entry) entries.push(entry);
+        });
+        if (nothing === undefined || entries.length !== entriesNode.items.length) return;
+        this.declarations.encounters.push(this.locate({ id, nothing, entries }, node));
+    }
+
+    private parseEncounterEntry(item: YamlNode | null, index: number, tableWhere: string): EncounterEntry | undefined {
+        const where = `entry ${index + 1} of ${tableWhere}`;
+        if (!isMap(item)) {
+            this.error(item, `${where} must be a map with 'node', and optionally 'weight' and 'when'`);
+            return undefined;
+        }
+        const fields = this.fields(item, ["node", "weight", "when"], where);
+        const nodeNode = this.required(fields, "node", item, where);
+        const node = nodeNode === undefined ? undefined : this.string(nodeNode, `the node of ${where}`);
+        const weight = fields.has("weight") ? this.weight(fields.get("weight") ?? null, `the weight of ${where}`, false) : 1;
+        if (node === undefined || weight === undefined) return undefined;
+
+        const entry: EncounterEntry = { node, weight };
+        const whenNode = fields.get("when");
+        if (whenNode !== undefined) {
+            const when = this.expression(whenNode, `the condition of ${where}`);
+            if (!when) return undefined;
+            entry.when = when;
+        }
+        return entry;
+    }
+
+    private weight(node: YamlNode | null, where: string, allowZero: boolean): number | undefined {
+        const value = this.integer(node, where);
+        if (value === undefined) return undefined;
+        if (value < (allowZero ? 0 : 1)) {
+            this.error(node, `${where} must be ${allowZero ? "0 or more" : "1 or more"}`);
+            return undefined;
+        }
+        return value;
     }
 
     private parsePreset(name: string, node: YamlNode | null): void {

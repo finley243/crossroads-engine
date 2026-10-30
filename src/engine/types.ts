@@ -56,7 +56,7 @@ export type Effect =
 
 export type Transition =
     | { kind: "goto"; node: string; pause: boolean; clear: boolean }
-    | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; bindings: Bindings }
+    | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; bindings: Bindings; trip?: boolean }
     | { kind: "return" }
     | { kind: "open_map"; map: string; cancelable: boolean }
     | { kind: "open_shop"; shop: string };
@@ -163,6 +163,7 @@ export interface MapLocation {
     requires?: Expr; // the location only appears on the map while this is true
     unlocked?: Expr; // it can only be traveled to while this is true, though it's still shown on the map
     lockedNote?: string; // says why it's locked
+    encounters?: string | null; // the encounter table rolled when traveling here, instead of the map's; null for none
 }
 
 export interface MapDef {
@@ -171,6 +172,21 @@ export interface MapDef {
     width: number; // the image's size in pixels, so positions can be placed on it at any display size
     height: number;
     locations: MapLocation[];
+    encounters?: string | null; // the encounter table rolled when traveling to a location that doesn't name its own; null for none
+}
+
+// Encounters
+
+export interface EncounterEntry {
+    node: string; // an ordinary node, which ends with {do return} to carry on to the destination
+    weight: number;
+    when?: Expr; // the entry can only be rolled while this is true
+}
+
+export interface EncounterTable {
+    id: string;
+    nothing: number; // the weight of nothing happening, against the weights of the entries that can be rolled
+    entries: EncounterEntry[];
 }
 
 
@@ -180,6 +196,7 @@ export interface Content {
     vars: Record<string, VarDecl>;
     presets: Record<string, PresentationDecl>;
     maps: Record<string, MapDef>;
+    encounters: Record<string, EncounterTable>;
 }
 
 
@@ -210,6 +227,7 @@ export interface StackFrame {
     node: string;
     onReturn?: Prose;
     bindings: Bindings;
+    trip?: boolean; // an encounter on the way to a destination: the player has left this node's place and not yet reached the next
 }
 
 export type Screen =

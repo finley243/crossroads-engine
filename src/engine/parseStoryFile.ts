@@ -48,7 +48,7 @@ interface Context {
 export function parseStoryFile(file: SourceFile): { declarations: FileDeclarations; errors: LoadError[] } {
     const text = file.text.replaceAll("\r\n", "\n");
     const context: Context = { file: file.path, lineAt: lineLookup(text), errors: [] };
-    const declarations: FileDeclarations = { nodes: [], items: [], vars: [], presets: [], maps: [] };
+    const declarations: FileDeclarations = { nodes: [], items: [], vars: [], presets: [], maps: [], encounters: [] };
 
     const segments = attempt(context, 0, () => scanSource(text));
     if (segments === undefined) return { declarations, errors: context.errors };

@@ -3,6 +3,7 @@ maps:
     image: city_map.png
     width: 2880
     height: 1503
+    encounters: street
     locations:
       alley:
         name: The Alley

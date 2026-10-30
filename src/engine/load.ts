@@ -2,7 +2,7 @@ import { DIRECTIVE_WORDS, EFFECT_WORDS } from "./parseDirective";
 import { DIRECTIVE_MARK } from "./parseProse";
 import { parseStoryFile, STORY_WORDS } from "./parseStoryFile";
 import { parseFile, type FileDeclarations, type LoadError, type Located, type SourceFile } from "./parseFile";
-import type { Branch, Content, Effect, Expr, ItemDef, Node, NodePresentation, Option, OptionResult, MapDef, PresentationDecl, PresentationField, Prose, ProsePart, TagExpr, VarDecl } from "./types";
+import type { Branch, Content, EncounterTable, Effect, Expr, ItemDef, Node, NodePresentation, Option, OptionResult, MapDef, PresentationDecl, PresentationField, Prose, ProsePart, TagExpr, VarDecl } from "./types";
 
 export type { LoadError, SourceFile } from "./parseFile";
 
@@ -13,6 +13,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     const vars: Located<VarDecl>[] = [];
     const presets: Located<{ name: string; decl: PresentationDecl }>[] = [];
     const maps: Located<MapDef>[] = [];
+    const encounters: Located<EncounterTable>[] = [];
     for (const file of files) {
         const result = parseSourceFile(file);
         errors.push(...result.errors);
@@ -21,13 +22,15 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         vars.push(...result.declarations.vars);
         presets.push(...result.declarations.presets);
         maps.push(...result.declarations.maps);
+        encounters.push(...result.declarations.encounters);
     }
     const content: Content = {
         nodes: collect(nodes, n => n.id, "node", errors),
         items: collect(items, i => i.id, "item", errors),
         vars: collect(vars, v => v.name, "variable", errors),
         presets: Object.fromEntries(Object.entries(collect(presets, p => p.name, "preset", errors)).map(([name, p]) => [name, p.decl])),
-        maps: collect(maps, m => m.id, "map", errors)
+        maps: collect(maps, m => m.id, "map", errors),
+        encounters: collect(encounters, t => t.id, "encounter table", errors),
     };
     checkVariableNames(vars, content, errors);
     const resolver = new Resolver(content, errors);
@@ -39,6 +42,10 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     for (const located of maps) {
         const { id } = located.value;
         if (content.maps[id] === located.value) content.maps[id] = resolver.map(located);
+    }
+    for (const located of encounters) {
+        const { id } = located.value;
+        if (content.encounters[id] === located.value) content.encounters[id] = resolver.encounterTable(located);
     }
     for (const located of presets) {
         const { name } = located.value;
@@ -136,11 +143,33 @@ class Resolver {
             this.where = `location '${location.id}' of map '${map.id}'`;
             this.checkNode(location.node);
             const resolved = { ...location };
-            if (location.requires) resolved.requires = this.locationCondition(location.requires, scope, "requirement");
-            if (location.unlocked) resolved.unlocked = this.locationCondition(location.unlocked, scope, "unlock condition");
+            if (location.requires) resolved.requires = this.globalCondition(location.requires, scope, "a location's requirement");
+            if (location.unlocked) resolved.unlocked = this.globalCondition(location.unlocked, scope, "a location's unlock condition");
+            if (location.encounters) this.checkEncounterTable(location.encounters);
             return resolved;
         });
+        if (map.encounters) {
+            this.where = `the encounters of map '${map.id}'`;
+            this.checkEncounterTable(map.encounters);
+        }
         return { ...map, locations };
+    }
+
+    encounterTable(located: Located<EncounterTable>): EncounterTable {
+        const table = located.value;
+        this.location = located;
+        const scope: Scope = { nodeId: null, bindings: new Set() };
+        const entries = table.entries.map((entry, index) => {
+            this.where = `entry ${index + 1} of encounter table '${table.id}'`;
+            this.checkNode(entry.node);
+            if (!entry.when) return entry;
+            return { ...entry, when: this.globalCondition(entry.when, scope, "an encounter's condition") };
+        });
+        return { ...table, entries };
+    }
+
+    private checkEncounterTable(name: string): void {
+        if (!this.content.encounters[name]) this.error(`Unknown encounter table '${name}'`);
     }
 
     node(located: Located<Node>): Node {
@@ -185,9 +214,10 @@ class Resolver {
         };
     }
 
-    private locationCondition(expr: Expr, scope: Scope, what: string): Expr {
+    // A condition that's checked outside any node, so it can only use global variables and can't bind items.
+    private globalCondition(expr: Expr, scope: Scope, whose: string): Expr {
         const { expr: resolved, bindings } = this.condition(expr, scope);
-        if (bindings.length > 0) this.error(`Item bindings can't be made in a location's ${what}`);
+        if (bindings.length > 0) this.error(`Item bindings can't be made in ${whose}`);
         return resolved;
     }
 

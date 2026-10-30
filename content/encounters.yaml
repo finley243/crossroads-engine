@@ -1,0 +1,19 @@
+vars:
+  pickpocketed: false
+  heat: 0
+
+encounters:
+  street:
+    nothing: 6
+    entries:
+      - node: street_pickpocket
+        weight: 3
+        when: not pickpocketed
+      - node: street_shakedown
+        weight: 2
+        when: heat >= 2
+
+  docks:
+    nothing: 2
+    entries:
+      - node: docks_dockworker

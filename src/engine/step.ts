@@ -124,6 +124,7 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
         case "push": {
             const frame: GameState["stack"][number] = { node: s.node, bindings: t.bindings };
             if (t.onReturn) frame.onReturn = t.onReturn;
+            if (t.trip) frame.trip = true;
             s.stack.push(frame);
             return enterNode(s, content, t.node, rng);
         }

@@ -1,7 +1,8 @@
 import { RuntimeError } from "./errors";
+import { encounterTableFor, rollEncounter } from "./encounters";
 import { availableLocations, currentLocationId, isUnlocked } from "./mapLocations";
 import { advance } from "./step";
-import type { Content, GameState, MapDef, MapView, Rng } from "./types";
+import type { Content, GameState, MapDef, MapView, Rng, Transition } from "./types";
 
 export function mapView(content: Content, state: GameState, mapId: string, rng: Rng): MapView {
     const map = findMap(content, mapId);
@@ -49,8 +50,23 @@ export function travel(content: Content, state: GameState, locationId: string, r
     }
 
     const s = structuredClone(state);
+    s.stack = [];
     delete s.pending;
-    advance(s, content, rng, { kind: "goto", node: destination.node, pause: false, clear: true }, [], destination.name);
+    // An encounter on the way goes on the stack like a pushed room, with a return that carries on to the destination.
+    // The destination isn't entered until then, so its text comes after the encounter's.
+    const table = encounterTableFor(map, destination);
+    const encounter = table === undefined ? undefined : rollEncounter(content, s, table, rng);
+    const first: Transition = encounter
+        ? {
+              kind: "push",
+              node: encounter.node,
+              pause: false,
+              bindings: {},
+              trip: true,
+              onReturn: [{ kind: "do", effect: { kind: "goto", node: destination.node } }],
+          }
+        : { kind: "goto", node: destination.node, pause: false, clear: false };
+    advance(s, content, rng, first, [], destination.name);
     return s;
 }
 
