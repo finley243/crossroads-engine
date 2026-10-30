@@ -49,9 +49,8 @@ export function travel(content: Content, state: GameState, locationId: string, r
     }
 
     const s = structuredClone(state);
-    s.stack = [];
     delete s.pending;
-    advance(s, content, rng, { kind: "goto", node: destination.node, pause: false }, [], destination.name);
+    advance(s, content, rng, { kind: "goto", node: destination.node, pause: false, clear: true }, [], destination.name);
     return s;
 }
 

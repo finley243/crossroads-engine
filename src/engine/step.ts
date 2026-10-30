@@ -119,6 +119,7 @@ function checkMapCanBeLeft(s: GameState, content: Content, rng: Rng, t: { map: s
 function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { text: string; transition?: Transition } {
     switch (t.kind) {
         case "goto":
+            if (t.clear) s.stack = []; // whatever was pushed is abandoned, without running its return text
             return enterNode(s, content, t.node, rng);
         case "push": {
             const frame: GameState["stack"][number] = { node: s.node, bindings: t.bindings };

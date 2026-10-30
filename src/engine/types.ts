@@ -48,14 +48,14 @@ export type Effect =
     | { kind: "give_item"; item: string; count?: Expr }
     | { kind: "take_item"; item: string; count?: Expr }
     | { kind: "reset_charges"; group: string }
-    | { kind: "goto"; node: string; pause?: boolean }
+    | { kind: "goto"; node: string; pause?: boolean; clear?: boolean }
     | { kind: "push"; node: string; onReturn?: Prose; pause?: boolean }
     | { kind: "return" }
     | { kind: "open_map"; map: string; cancelable: boolean }
     | { kind: "open_shop"; shop: string };
 
 export type Transition =
-    | { kind: "goto"; node: string; pause: boolean }
+    | { kind: "goto"; node: string; pause: boolean; clear: boolean }
     | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; bindings: Bindings }
     | { kind: "return" }
     | { kind: "open_map"; map: string; cancelable: boolean }

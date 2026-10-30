@@ -59,7 +59,7 @@ function parseKeywordDirective(stream: TokenStream): Directive | undefined {
         case "endpush":
             return { kind: "endpush" };
         case "push": {
-            const { node, pause } = parseTarget(stream, "a node name after 'push'");
+            const { node, pause } = parseTarget(stream, "a node name after 'push'", false);
             return { kind: "push", node, pause };
         }
         case "do":
@@ -74,8 +74,8 @@ function parseEffect(stream: TokenStream): Effect {
         stream.next();
         switch (word.text) {
             case "goto": {
-                const { node, pause } = parseTarget(stream, "a node name after 'goto'");
-                return { kind: "goto", node, pause };
+                const { node, pause, clear } = parseTarget(stream, "a node name after 'goto'", true);
+                return { kind: "goto", node, pause, clear };
             }
             case "return":
                 return { kind: "return" };
@@ -97,7 +97,7 @@ function parseEffect(stream: TokenStream): Effect {
             case "open_shop":
                 return { kind: "open_shop", shop: expectName(stream, "a shop name after 'open_shop'") };
             case "push": {
-                const { node, pause } = parseTarget(stream, "a node name after 'push'");
+                const { node, pause } = parseTarget(stream, "a node name after 'push'", false);
                 return { kind: "push", node, pause };
             }
         }
@@ -118,10 +118,23 @@ function parseAssignment(stream: TokenStream): Effect {
     return { kind: "assign", op: op.text as AssignOp, target, value: parseExpression(stream) };
 }
 
-function parseTarget(stream: TokenStream, description: string): { node: string; pause: boolean } {
+// A node name, then the optional words that change how the transition happens, in either order.
+function parseTarget(stream: TokenStream, description: string, allowClear: boolean): { node: string; pause: boolean; clear: boolean } {
     const node = expectName(stream, description);
-    const pause = stream.match("name", "pause");
-    return { node, pause };
+    let pause = false;
+    let clear = false;
+    for (;;) {
+        const next = stream.peek();
+        if (!pause && stream.match("name", "pause")) {
+            pause = true;
+        } else if (!clear && next.kind === "name" && next.text === "clear") {
+            if (!allowClear) throw new ParseError("'clear' can only be used with goto", next.position);
+            stream.next();
+            clear = true;
+        } else {
+            return { node, pause, clear };
+        }
+    }
 }
 
 function expectName(stream: TokenStream, description: string): string {

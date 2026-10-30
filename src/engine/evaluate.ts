@@ -254,7 +254,7 @@ export function applyEffect(effect: Effect, context: EvalContext): Transition | 
             }
             return undefined;
         case "goto":
-            return { kind: "goto", node: effect.node, pause: effect.pause ?? false };
+            return { kind: "goto", node: effect.node, pause: effect.pause ?? false, clear: effect.clear ?? false };
         case "push": {
             const t: Transition = { kind: "push", node: effect.node, pause: effect.pause ?? false, bindings: { ...context.bindings } };
             if (effect.onReturn) t.onReturn = effect.onReturn;
