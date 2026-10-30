@@ -79,9 +79,9 @@ export function advance(s: GameState, content: Content, rng: Rng, first: Transit
         if (++count > MAX_TRANSITIONS_PER_STEP) {
             throw new RuntimeError(`More than ${MAX_TRANSITIONS_PER_STEP} transitions in one step; is there a loop?`);
         }
-        if ((transition.kind === "goto" || transition.kind === "push") && transition.pause
-            && pieces.some(p => finishText(p) !== "")) {
-            s.pending = { ...transition, pause: false };
+        if (transition.kind === "open_map") checkMapCanBeLeft(s, content, rng, transition);
+        if (pausesBeforeRunning(transition) && pieces.some(p => finishText(p) !== "")) {
+            s.pending = transition.kind === "goto" || transition.kind === "push" ? { ...transition, pause: false } : transition;
             break;
         }
         const next = carryOut(s, content, rng, transition);
@@ -90,6 +90,30 @@ export function advance(s: GameState, content: Content, rng: Rng, first: Transit
     }
     record(s, pieces, label);
     s.options = s.pending ? [] : computeOptions(s, content, rng);
+}
+
+// Any text before a transition is shown first with a Continue button if the author asked for a pause, and always
+// before a map or shop, since those cover the text the moment they open.
+function pausesBeforeRunning(t: Transition): boolean {
+    switch (t.kind) {
+        case "goto":
+        case "push":
+            return t.pause;
+        case "open_map":
+        case "open_shop":
+            return true;
+        case "return":
+            return false;
+    }
+}
+
+// A map that can't be canceled has to have somewhere to go, or the player would be stuck on it.
+function checkMapCanBeLeft(s: GameState, content: Content, rng: Rng, t: { map: string; cancelable: boolean }): void {
+    const map = content.maps[t.map];
+    if (!map) throw new RuntimeError(`Unknown map '${t.map}'`);
+    if (!t.cancelable && travelLocations(content, s, map, rng).length === 0) {
+        throw new RuntimeError(`The map '${t.map}' was opened with nocancel, but there's nowhere to travel to`);
+    }
 }
 
 function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { text: string; transition?: Transition } {
@@ -111,16 +135,9 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
             if (!frame.onReturn) return { text: "" };
             return evaluateProse(frame.onReturn, { content, state: s, bindings: frame.bindings, rng });
         }
-        case "open_map": {
-            const map = content.maps[t.map];
-            if (!map) throw new RuntimeError(`Unknown map '${t.map}'`);
+        case "open_map":
             s.screen = { kind: "map", map: t.map, cancelable: t.cancelable };
-            // A map that can't be canceled has to have somewhere to go, or the player would be stuck on it.
-            if (!t.cancelable && travelLocations(content, s, map, rng).length === 0) {
-                throw new RuntimeError(`The map '${t.map}' was opened with nocancel, but there's nowhere to travel to`);
-            }
             return { text: "" };
-        }
         case "open_shop":
             s.screen = { kind: "shop", shop: t.shop };
             return { text: "" };
@@ -140,6 +157,8 @@ function record(s: GameState, pieces: string[], label: string | undefined): void
         .map(finishText)
         .filter(p => p !== "")
         .join(`\n\n${SCENE_BREAK}\n\n`);
+    // Continuing on to a map or shop adds nothing to read, so it isn't worth an entry of its own.
+    if (text === "" && label === CONTINUE_LABEL && s.screen.kind !== "node") return;
     const entry: HistoryEntry = { node: s.node, text };
     if (label !== undefined) entry.option = label;
     s.history.push(entry);
