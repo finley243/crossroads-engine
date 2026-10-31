@@ -80,8 +80,13 @@ export function advance(s: GameState, content: Content, rng: Rng, first: Transit
             throw new RuntimeError(`More than ${MAX_TRANSITIONS_PER_STEP} transitions in one step; is there a loop?`);
         }
         if (transition.kind === "open_map") checkMapCanBeLeft(s, content, rng, transition);
+        if (transition.kind === "return" && s.stack.length === 0) {
+            throw new RuntimeError(`'return' in '${s.node}', but there's no node to return to`); // before asking the player to continue
+        }
         if (pausesBeforeRunning(transition) && pieces.some(p => finishText(p) !== "")) {
-            s.pending = transition.kind === "goto" || transition.kind === "push" ? { ...transition, pause: false } : transition;
+            s.pending = transition.kind === "goto" || transition.kind === "push" || transition.kind === "return"
+                ? { ...transition, pause: false }
+                : transition;
             break;
         }
         const next = carryOut(s, content, rng, transition);
@@ -103,7 +108,7 @@ function pausesBeforeRunning(t: Transition): boolean {
         case "open_shop":
             return true;
         case "return":
-            return false;
+            return t.pause;
     }
 }
 

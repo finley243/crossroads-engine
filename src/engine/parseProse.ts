@@ -61,8 +61,7 @@ class SegmentStream {
  
 type DirectiveKind = Directive["kind"];
  
-const IF_BODY_END = new Set<DirectiveKind>(["endif", "else"]);
-const ELSE_BODY_END = new Set<DirectiveKind>(["endif"]);
+const IF_BODY_END = new Set<DirectiveKind>(["endif", "elseif", "else"]);
 const CASE_BODY_END = new Set<DirectiveKind>(["case", "default", "endswitch"]);
 const PUSH_BODY_END = new Set<DirectiveKind>(["endpush"]);
  
@@ -114,13 +113,30 @@ function parseBody(stream: SegmentStream, closes: Set<DirectiveKind>): Prose {
     return parts;
 }
 
+// An {if} with any number of {elseif}s and an optional {else} is a list of branches, of which the first true one is used.
 function parseIf(stream: SegmentStream, cond: Expr, openedAt: number): ProsePart {
     const branches: Branch[] = [{ cond, body: parseBody(stream, IF_BODY_END) }];
-    if (expectClose(stream, IF_BODY_END, "{if}", openedAt) === "else") {
-        branches.push({ cond: null, body: [mark(), ...parseBody(stream, ELSE_BODY_END)] });
-        expectClose(stream, ELSE_BODY_END, "{if}", openedAt);
+    let close = closeIf(stream, openedAt);
+    while (close.directive.kind === "elseif") {
+        branches.push({ cond: close.directive.cond, body: [mark(), ...parseBody(stream, IF_BODY_END)] });
+        close = closeIf(stream, openedAt);
+    }
+    if (close.directive.kind === "else") {
+        branches.push({ cond: null, body: [mark(), ...parseBody(stream, IF_BODY_END)] });
+        close = closeIf(stream, openedAt);
+        if (close.directive.kind !== "endif") {
+            throw new ParseError(`{${close.directive.kind}} can't come after {else}`, close.position);
+        }
     }
     return { kind: "switch", branches };
+}
+
+function closeIf(stream: SegmentStream, openedAt: number): { directive: Directive; position: number } {
+    const segment = stream.next();
+    if (!segment || segment.kind !== "directive" || !IF_BODY_END.has(segment.directive.kind)) {
+        throw new ParseError("This {if} is never closed", openedAt);
+    }
+    return { directive: segment.directive, position: segment.position };
 }
 
 function parseSwitch(stream: SegmentStream, openedAt: number): ProsePart[] {
@@ -176,6 +192,7 @@ function expectClose(stream: SegmentStream, allowed: Set<DirectiveKind>, opener:
 
 function unmatchedCloseMessage(kind: DirectiveKind): string {
     switch (kind) {
+        case "elseif":
         case "else":
         case "endif":
             return `{${kind}} without a matching {if}`;

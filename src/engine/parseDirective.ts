@@ -17,7 +17,7 @@ export type Directive =
     | { kind: "do"; effect: Effect }
     | { kind: "output"; expr: Expr };
 
-export const DIRECTIVE_WORDS = new Set(["if", "else", "endif", "switch", "case", "default", "endswitch", "push", "endpush", "do"]);
+export const DIRECTIVE_WORDS = new Set(["if", "elseif", "else", "endif", "switch", "case", "default", "endswitch", "push", "endpush", "do"]);
 export const EFFECT_WORDS = new Set(["goto", "return", "use_item", "give_item", "take_item", "reset_charges", "open_map", "open_shop", "push"]);
 
 type AssignOp = "=" | "+=" | "-=";
@@ -44,6 +44,8 @@ function parseKeywordDirective(stream: TokenStream): Directive | undefined {
     switch (first.text) {
         case "if":
             return { kind: "if", cond: parseExpression(stream) };
+        case "elseif":
+            return { kind: "elseif", cond: parseExpression(stream) };
         case "case":
             return { kind: "case", cond: parseExpression(stream) };
         case "else":
@@ -78,7 +80,7 @@ function parseEffect(stream: TokenStream): Effect {
                 return { kind: "goto", node, pause, clear };
             }
             case "return":
-                return { kind: "return" };
+                return { kind: "return", pause: stream.match("name", "pause") };
             case "use_item":
                 return { kind: "use_item", binding: expectName(stream, "a binding name after 'use_item'") };
             case "give_item":
