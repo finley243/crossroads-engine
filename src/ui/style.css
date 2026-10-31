@@ -15,7 +15,7 @@
     --background: #040d08;
     --text: #7dffb0;
     --muted: #3f8f66;
-    --accent: #ff4fd8;
+    --accent: #1de66e;
     --button: #0a1a12;
     --button-hover: #11301f;
     --font: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
@@ -96,16 +96,16 @@ main {
     margin-top: 1.5rem;
 }
 
-#options button {
+/*#options button {
     animation: appear 0.15s ease-out backwards;
     animation-delay: calc(min(var(--position, 0), 6) * 30ms);
     font: inherit;
     text-align: left;
     color: var(--text);
     background: var(--button);
-    border: 1px solid transparent;
+    border: 1px solid transparent;*/
     /*border-left: 3px solid var(--accent);*/
-    border-radius: 1px;
+    /*border-radius: 1px;
     padding: 0.6rem 0.9rem;
     cursor: pointer;
 }
@@ -114,6 +114,45 @@ main {
     background: var(--button-hover);
     outline: none;
     border: 1px solid var(--accent);
+}*/
+
+#options button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 16px 20px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #F0F4F8;
+  font-size: 16px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The arrow element inside the button */
+#options button::after {
+    content: "→";
+    margin-left: auto; /* Pushes the arrow all the way to the right */
+    font-family: "DejaVu Sans Mono Book", monospace;
+    opacity: 0;
+    transform: translateX(-10px); /* Starts slightly shifted left */
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    color: var(--accent);
+}
+
+/* Active focus state */
+#options button:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 30%, transparent),
+        inset 0 0 10px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+/* Slide and fade the arrow in when focused */
+#options button:focus::after {
+    opacity: 1;
+    transform: translateX(0);
 }
 
 .option-number {
