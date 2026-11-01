@@ -104,14 +104,23 @@ function parseSimple(stream: TokenStream): Expr {
 }
 
 function parseName(stream: TokenStream): Expr {
+    let hasDot = false;
     let name = stream.next().text;
     while (stream.match("dot")) {
+        hasDot = true;
         const part = stream.next();
         // Allow keywords after a dot, so properties like "med.count" work.
         if (part.kind !== "name" && part.kind !== "keyword") {
             throw new ParseError(`Expected a name after '.' but found ${describe(part)}`, part.position);
         }
         name += "." + part.text;
+    }
+    if (stream.peek()?.kind === "left_paren") {
+        let leftParen = stream.next();
+        if (hasDot) throw new ParseError(`Function name cannot have a dot`, leftParen.position);
+        // Currently, functions cannot have arguments, but this is where they would be parsed
+        stream.expect("right_paren", "')' after function call");
+        return { kind: "function_ref", name };
     }
     return { kind: "var", name };
 }

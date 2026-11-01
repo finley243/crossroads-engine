@@ -37,7 +37,8 @@ export type Expr =
     | { kind: "item_prop"; binding: string; prop: "uses" | "has_uses" | "count" }
     // Randomness: the loader only allows these on the right side of an assignment.
     | { kind: "random"; min: Expr; max: Expr }
-    | { kind: "chance"; percent: Expr };
+    | { kind: "chance"; percent: Expr }
+    | { kind: "function_ref"; name: string };
 
 
 // Effects
@@ -194,6 +195,7 @@ export interface Content {
     nodes: Record<string, Node>;
     items: Record<string, ItemDef>;
     vars: Record<string, VarDecl>;
+    functions: Record<string, Expr>;
     presets: Record<string, PresentationDecl>;
     maps: Record<string, MapDef>;
     encounters: Record<string, EncounterTable>;

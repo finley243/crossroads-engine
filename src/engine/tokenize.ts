@@ -19,7 +19,7 @@ export interface Token {
     position: number;
 }
 
-const KEYWORDS = new Set([
+export const KEYWORDS = new Set([
     "and", "or", "not", "as", "true", "false", "item", "count", "random", "chance"
 ]);
 

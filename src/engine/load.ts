@@ -11,6 +11,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     const nodes: Located<Node>[] = [];
     const items: Located<ItemDef>[] = [];
     const vars: Located<VarDecl>[] = [];
+    const functions: Located<{ name: string; body: Expr }>[] = [];
     const presets: Located<{ name: string; decl: PresentationDecl }>[] = [];
     const maps: Located<MapDef>[] = [];
     const encounters: Located<EncounterTable>[] = [];
@@ -20,20 +21,31 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         nodes.push(...result.declarations.nodes);
         items.push(...result.declarations.items);
         vars.push(...result.declarations.vars);
+        functions.push(...result.declarations.functions);
         presets.push(...result.declarations.presets);
         maps.push(...result.declarations.maps);
         encounters.push(...result.declarations.encounters);
     }
+    const functionDecls = collect(functions, f => f.name, "function", errors);
     const content: Content = {
         nodes: collect(nodes, n => n.id, "node", errors),
         items: collect(items, i => i.id, "item", errors),
         vars: collect(vars, v => v.name, "variable", errors),
+        functions: Object.fromEntries(Object.entries(functionDecls).map(([name, f]) => [name, f.body])),
         presets: Object.fromEntries(Object.entries(collect(presets, p => p.name, "preset", errors)).map(([name, p]) => [name, p.decl])),
         maps: collect(maps, m => m.id, "map", errors),
         encounters: collect(encounters, t => t.id, "encounter table", errors),
     };
+    const functionLocations = new Map<string, Located<unknown>>();
+    for (const located of functions) {
+        if (!functionLocations.has(located.value.name)) functionLocations.set(located.value.name, located);
+    }
     checkVariableNames(vars, content, errors);
-    const resolver = new Resolver(content, errors);
+    const resolver = new Resolver(content, errors, functionLocations);
+    for (const located of functions) {
+        const { name } = located.value;
+        if (content.functions[name] === located.value.body) resolver.functionBody(name);
+    }
     for (const located of nodes) {
         if (content.nodes[located.value.id] === located.value) {
             content.nodes[located.value.id] = resolver.node(located);
@@ -122,10 +134,12 @@ class Resolver {
     private readonly tags = new Set<string>();
     private readonly resetGroups = new Set<string>();
     private readonly locationIds = new Set<string>();
+    private readonly resolvedFunctions = new Map<string, Expr>();
+    private readonly resolving = new Set<string>();
     private location: { file: string; line: number } = { file: "", line: 1 };
     private where = "";
 
-    constructor(private readonly content: Content, private readonly errors: LoadError[]) {
+    constructor(private readonly content: Content, private readonly errors: LoadError[], private readonly functionLocations: Map<string, Located<unknown>>) {
         for (const item of Object.values(content.items)) {
             item.tags.forEach(tag => this.tags.add(tag));
             if (item.charges) this.resetGroups.add(item.charges.reset);
@@ -374,6 +388,30 @@ class Resolver {
         return { expr: visit(expr, true), bindings };
     }
 
+    functionBody(name: string): Expr {
+        const cached = this.resolvedFunctions.get(name);
+        if (cached) return cached;
+        const raw = this.content.functions[name];
+        if (!raw) {
+            this.error(`Unknown function '${name}'`);
+            return { kind: "literal", value: false };
+        }
+        if (this.resolving.has(name)) {
+            this.error(`The function '${name}' calls itself, directly or through other functions`);
+            return { kind: "literal", value: false };
+        }
+        const saved = { location: this.location, where: this.where };
+        this.location = this.functionLocations.get(name) ?? this.location;
+        this.where = `the body of function '${name}'`;
+        this.resolving.add(name);
+        const resolved = this.expr(raw, { nodeId: null, bindings: new Set() }, { allowRandom: false });
+        this.resolving.delete(name);
+        this.location = saved.location;
+        this.where = saved.where;
+        this.resolvedFunctions.set(name, resolved);
+        return resolved;
+    }
+
     private expr(expr: Expr, scope: Scope, context: ExprContext): Expr {
         const result = this.exprOrName(expr, scope, context);
         if (result.kind === "unresolved") {
@@ -389,6 +427,8 @@ class Resolver {
                 return expr;
             case "var":
                 return this.name(expr.name, scope);
+            case "function_ref":
+                return this.functionBody(expr.name);
             case "not":
                 return { kind: "not", operand: this.expr(expr.operand, scope, context) };
             case "and":

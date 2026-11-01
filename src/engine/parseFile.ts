@@ -1,6 +1,6 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
 import type { AmbienceState, Difficulty, EncounterEntry, EncounterTable, Expr, ItemDef, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
-import { tokenize, TokenStream } from "./tokenize";
+import { KEYWORDS, tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { parseProse } from "./parseProse";
 import { ParseError } from "./errors";
@@ -26,6 +26,7 @@ export interface FileDeclarations {
     nodes: Located<Node>[];
     items: Located<ItemDef>[];
     vars: Located<VarDecl>[];
+    functions: Located<{ name: string; body: Expr }>[];
     presets: Located<{ name: string; decl: PresentationDecl }>[];
     maps: Located<MapDef>[];
     encounters: Located<EncounterTable>[];
@@ -41,7 +42,7 @@ export const DIFFICULTIES = new Set<string>(["likely", "even", "unlikely"]);
 class FileParser {
     private readonly lineCounter = new LineCounter();
     private readonly errors: LoadError[] = [];
-    private readonly declarations: FileDeclarations = { nodes: [], items: [], vars: [], presets: [], maps: [], encounters: [] };
+    private readonly declarations: FileDeclarations = { nodes: [], items: [], vars: [], functions: [], presets: [], maps: [], encounters: [] };
 
     constructor(private readonly file: SourceFile) {}
 
@@ -57,8 +58,9 @@ class FileParser {
             this.error(root, "A content file must be a map");
             return this.result();
         }
-        const fields = this.fields(root, ["vars", "nodes", "items", "presets", "maps", "encounters"], "the top level of the file");
+        const fields = this.fields(root, ["vars", "functions", "nodes", "items", "presets", "maps", "encounters"], "the top level of the file");
         this.forEachEntry(fields.get("vars"), "vars", (name, node) => this.parseVar(name, node, null));
+        this.forEachEntry(fields.get("functions"), "functions", (name, node) => this.parseFunction(name, node));
         this.forEachEntry(fields.get("nodes"), "nodes", (id, node) => this.parseNode(id, node));
         this.forEachEntry(fields.get("items"), "items", (id, node) => this.parseItem(id, node));
         this.forEachEntry(fields.get("presets"), "presets", (name, node) => this.parsePreset(name, node));
@@ -94,6 +96,12 @@ class FileParser {
             return decl({ kind: "enum", values }, def);
         }
         this.error(node, `'${name}' must be declared as true/false, an integer, or { enum: [...], default: ... }`);
+    }
+
+    private parseFunction(name: string, node: YamlNode | null): void {
+        if (KEYWORDS.has(name)) return this.error(node, `'${name}' can't be used as a function name, since it's a reserved word`);
+        const body = this.expression(node, `the body of function '${name}'`);
+        if (body) this.declarations.functions.push(this.locate({ name, body }, node));
     }
 
     private parseNode(id: string, node: YamlNode | null): void {

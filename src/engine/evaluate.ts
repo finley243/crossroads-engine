@@ -103,6 +103,8 @@ export function evaluate(expr: Expr, context: EvalContext): Value {
         }
         case "chance":
             return context.rng() * 100 < int(evaluate(expr.percent, context));
+        case "function_ref":
+            throw new RuntimeError(`The function '${expr.name}' was never resolved; this is an engine bug`);
     }
 }
 
