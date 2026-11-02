@@ -28,7 +28,7 @@ const PUNCTUATION: Record<string, TokenKind> = {
     ")": "right_paren",
     ",": "comma",
     ".": "dot",
-    ":": "comma",
+    ":": "colon",
     "|": "bar"
 };
 
