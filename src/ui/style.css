@@ -125,6 +125,7 @@ main {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #F0F4F8;
+  font: inherit;
   font-size: 16px;
   cursor: pointer;
   outline: none;
@@ -133,13 +134,18 @@ main {
 
 /* The arrow element inside the button */
 #options button::after {
-    content: "→";
-    margin-left: auto; /* Pushes the arrow all the way to the right */
-    font-family: "DejaVu Sans Mono Book", monospace;
+    content: "";
+    flex: none;
+    align-self: center;
+    width: 1.15em;
+    height: 1.15em;
+    margin-left: auto;
+    background: var(--accent);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12h16M14 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12h16M14 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
     opacity: 0;
-    transform: translateX(-10px); /* Starts slightly shifted left */
+    transform: translateX(-10px);
     transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    color: var(--accent);
 }
 
 /* Active focus state */
