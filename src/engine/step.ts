@@ -98,14 +98,13 @@ export function advance(s: GameState, content: Content, rng: Rng, first: Transit
 }
 
 // Any text before a transition is shown first with a Continue button if the author asked for a pause, and always
-// before a map or shop, since those cover the text the moment they open.
+// before a map, since those cover the text the moment they open.
 function pausesBeforeRunning(t: Transition): boolean {
     switch (t.kind) {
         case "goto":
         case "push":
             return t.pause;
         case "open_map":
-        case "open_shop":
             return true;
         case "return":
             return t.pause;
@@ -145,9 +144,6 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
         case "open_map":
             s.screen = { kind: "map", map: t.map, cancelable: t.cancelable };
             return { text: "" };
-        case "open_shop":
-            s.screen = { kind: "shop", shop: t.shop };
-            return { text: "" };
     }
 }
 
@@ -164,7 +160,7 @@ function record(s: GameState, pieces: string[], label: string | undefined): void
         .map(finishText)
         .filter(p => p !== "")
         .join(`\n\n${SCENE_BREAK}\n\n`);
-    // Continuing on to a map or shop adds nothing to read, so it isn't worth an entry of its own.
+    // Continuing on to a map adds nothing to read, so it isn't worth an entry of its own.
     if (text === "" && label === CONTINUE_LABEL && s.screen.kind !== "node") return;
     const entry: HistoryEntry = { node: s.node, text };
     if (label !== undefined) entry.option = label;

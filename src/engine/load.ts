@@ -342,8 +342,7 @@ class Resolver {
                 if (!this.content.maps[effect.map]) this.error(`Unknown map '${effect.map}'`);
                 return effect;
             case "return":
-            case "open_shop":
-                return effect; // TODO - shops must be added to Content first
+                return effect;
         }
     }
 

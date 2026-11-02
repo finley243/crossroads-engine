@@ -18,7 +18,7 @@ export type Directive =
     | { kind: "output"; expr: Expr };
 
 export const DIRECTIVE_WORDS = new Set(["if", "elseif", "else", "endif", "switch", "case", "default", "endswitch", "push", "endpush", "do"]);
-export const EFFECT_WORDS = new Set(["goto", "return", "use_item", "give_item", "take_item", "reset_charges", "open_map", "open_shop", "push"]);
+export const EFFECT_WORDS = new Set(["goto", "return", "use_item", "give_item", "take_item", "reset_charges", "open_map", "push"]);
 
 type AssignOp = "=" | "+=" | "-=";
 const ASSIGN_OPS = new Set(["=", "+=", "-="]);
@@ -96,8 +96,6 @@ function parseEffect(stream: TokenStream): Effect {
                 const map = expectName(stream, "a map name after 'open_map'");
                 return { kind: "open_map", map, cancelable: !stream.match("name", "nocancel") };
             }
-            case "open_shop":
-                return { kind: "open_shop", shop: expectName(stream, "a shop name after 'open_shop'") };
             case "push": {
                 const { node, pause } = parseTarget(stream, "a node name after 'push'", false);
                 return { kind: "push", node, pause };
