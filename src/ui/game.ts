@@ -3,6 +3,7 @@ import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, sceneView, step } from "../engine/step";
 import type { OptionView } from "../engine/types";
 import { inlineHtml, textToHtml } from "./formatText";
+import { createHistory, type HistoryElements } from "./history";
 import { listenForInput, type InputAction } from "./input";
 import { createMapScreen, type MapScreenHandlers } from "./mapScreen";
 import { settings } from "./settings";
@@ -15,6 +16,7 @@ export interface GamePage {
     map: HTMLElement;
     mapButton: HTMLElement;
     background: HTMLElement; // everything behind the map screen
+    history: HistoryElements;
 }
 
 const rng = Math.random;
@@ -38,6 +40,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         document.documentElement.classList.toggle("keyboard-nav", value); // hides the mouse cursor, until the mouse is used
     }
     const mapScreen = createMapScreen(page.map, page.background);
+    const transcript = createHistory(page.history);
     function showScene(animate = true): void {
         if (state.screen.kind === "map") {
             openTravelMap();
@@ -47,8 +50,10 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         const view = sceneView(content, state, rng);
         visibleOptions = [];
         document.documentElement.dataset.theme = view.presentation.theme ?? "";
+        transcript.sync(state.history.slice(0, -1)); // everything before the scene being shown
         page.story.innerHTML = textToHtml(view.latestEntry.text);
         page.options.replaceChildren();
+        transcript.showCurrentScene();
         if (animate && canType() && settings.typingCharsPerSecond > 0) {
             skipTyping = typeText(page.story, settings.typingCharsPerSecond, () => {
                 skipTyping = undefined;
@@ -129,6 +134,15 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         setUsingKeyboard(true);
         if (mapScreen.isOpen()) return mapScreen.handleAction(action);
         if (action.kind === "map") return openReadOnlyMap();
+        let backFromHistory = false;
+        if ((action.kind === "move" || action.kind === "confirm" || action.kind === "choose") && transcript.isAway()) {
+            transcript.showCurrentScene();
+            if (action.kind !== "move") {
+                if (action.kind === "confirm") skipTyping?.();
+                return true;
+            }
+            backFromHistory = true;
+        }
         if (skipTyping) {
             if (action.kind !== "confirm") return false;
             skipTyping();
@@ -136,7 +150,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         switch (action.kind) {
             case "move":
-                return moveSelection(action.direction === "down" || action.direction === "right" ? 1 : -1);
+                return moveSelection(action.direction === "down" || action.direction === "right" ? 1 : -1, !backFromHistory);
             case "confirm": {
                 const selected = optionButtons().find(button => button === document.activeElement);
                 selected?.click();
@@ -152,12 +166,13 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
                 return false;
         }
     }
-    function moveSelection(step: 1 | -1): boolean {
+    // Highlighting an option scrolls to it, unless that would scroll past the start of the text the view has just returned to.
+    function moveSelection(step: 1 | -1, scroll = true): boolean {
         const buttons = optionButtons();
         if (buttons.length === 0) return false;
         const current = buttons.findIndex(button => button === document.activeElement);
         const next = current === -1 ? (step === 1 ? 0 : buttons.length - 1) : (current + step + buttons.length) % buttons.length;
-        buttons[next]!.focus();
+        buttons[next]!.focus({ preventScroll: !scroll });
         return true;
     }
     page.mapButton.addEventListener("click", () => openReadOnlyMap());

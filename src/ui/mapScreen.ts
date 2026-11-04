@@ -43,6 +43,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         buildPage();
         root.hidden = false;
         background.inert = true; // so tabbing and clicking can't reach the game behind the map
+        document.documentElement.classList.add("screen-open"); // and the page behind it can't be scrolled
         open = true;
 
         fitFrame();
@@ -65,6 +66,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         root.replaceChildren();
         root.hidden = true;
         background.inert = false;
+        document.documentElement.classList.remove("screen-open");
     }
 
     function buildPage(): void {
