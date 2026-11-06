@@ -1,5 +1,5 @@
 import { ParseError } from "./errors";
-import { NAME, type FileDeclarations, type LoadError, type SourceFile } from "./parseFile";
+import { NAME, type FileDeclarations, type LoadError, type SourceFile } from "./loadTypes";
 import { parseProseSegments } from "./parseProse";
 import { readSections, type Marker, type Part, type Section, type SectionTable } from "./readSections";
 import { lineLookup, scanSource } from "./scan";

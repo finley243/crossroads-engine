@@ -3,11 +3,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { loadContent, type SourceFile } from "../engine/load";
+import { loadContent } from "../engine/load";
 import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, sceneView, SCENE_BREAK, step } from "../engine/step";
 import type { Content, GameState, MapLocationView, MapView } from "../engine/types";
 import { LITERAL_ASTERISK } from "../engine/scan";
+import type { SourceFile } from "../engine/loadTypes";
 
 
 const [contentDir = "content", startNode = "start"] = process.argv.slice(2);

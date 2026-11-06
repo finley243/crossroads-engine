@@ -1,10 +1,9 @@
 import { DIRECTIVE_WORDS, EFFECT_WORDS } from "./parseDirective";
 import { DIRECTIVE_MARK } from "./parseProse";
 import { parseStoryFile, STORY_WORDS } from "./parseStoryFile";
-import { parseFile, type FileDeclarations, type LoadError, type Located, type SourceFile } from "./parseFile";
+import { parseFile } from "./parseFile";
 import type { Branch, Content, EncounterTable, Effect, Expr, Node, NodePresentation, Option, OptionResult, MapDef, PresentationDecl, PresentationField, Prose, ProsePart, VarDecl } from "./types";
-
-export type { LoadError, SourceFile } from "./parseFile";
+import type { FileDeclarations, LoadError, Located, SourceFile } from "./loadTypes";
 
 export function loadContent(files: SourceFile[]): { content: Content; errors: LoadError[] } {
     const errors: LoadError[] = [];

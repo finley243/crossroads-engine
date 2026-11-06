@@ -1,4 +1,5 @@
-import { loadContent, type SourceFile } from "../engine/load";
+import { loadContent } from "../engine/load";
+import type { SourceFile } from "../engine/loadTypes";
 import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, sceneView, step } from "../engine/step";
 import type { OptionView } from "../engine/types";

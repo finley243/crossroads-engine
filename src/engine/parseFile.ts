@@ -4,38 +4,11 @@ import { KEYWORDS, tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { parseProse } from "./parseProse";
 import { ParseError } from "./errors";
-
-export interface SourceFile {
-    path: string;
-    text: string;
-}
-
-export interface LoadError {
-    file: string;
-    line: number; // indexed from 1
-    message: string;
-}
-
-export interface Located<T> {
-    value: T;
-    file: string;
-    line: number;
-}
-
-export interface FileDeclarations {
-    nodes: Located<Node>[];
-    vars: Located<VarDecl>[];
-    functions: Located<{ name: string; body: Expr }>[];
-    presets: Located<{ name: string; decl: PresentationDecl }>[];
-    maps: Located<MapDef>[];
-    encounters: Located<EncounterTable>[];
-}
+import { NAME, type FileDeclarations, type LoadError, type Located, type SourceFile } from "./loadTypes";
 
 export function parseFile(file: SourceFile): { declarations: FileDeclarations; errors: LoadError[] } {
     return new FileParser(file).parse();
 }
-
-export const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 class FileParser {
     private readonly lineCounter = new LineCounter();
@@ -59,7 +32,6 @@ class FileParser {
         const fields = this.fields(root, ["vars", "functions", "nodes", "presets", "maps", "encounters"], "the top level of the file");
         this.forEachEntry(fields.get("vars"), "vars", (name, node) => this.parseVar(name, node, null));
         this.forEachEntry(fields.get("functions"), "functions", (name, node) => this.parseFunction(name, node));
-        this.forEachEntry(fields.get("nodes"), "nodes", (id, node) => this.parseNode(id, node));
         this.forEachEntry(fields.get("presets"), "presets", (name, node) => this.parsePreset(name, node));
         this.forEachEntry(fields.get("maps"), "maps", (id, node) => this.parseMap(id, node));
         this.forEachEntry(fields.get("encounters"), "encounters", (id, node) => this.parseEncounterTable(id, node));
@@ -99,106 +71,6 @@ class FileParser {
         if (KEYWORDS.has(name)) return this.error(node, `'${name}' can't be used as a function name, since it's a reserved word`);
         const body = this.expression(node, `the body of function '${name}'`);
         if (body) this.declarations.functions.push(this.locate({ name, body }, node));
-    }
-
-    private parseNode(id: string, node: YamlNode | null): void {
-        if (!isMap(node)) return this.error(node, `Node '${id}' must be a map`);
-        const fields = this.fields(node, ["vars", "text", "presentation", "options"], `node '${id}'`);
-        this.forEachEntry(fields.get("vars"), `the vars of node '${id}'`, (name, n) => this.parseVar(name, n, id));
-        const textNode = fields.get("text");
-        const text = textNode === undefined ? [] : this.prose(textNode, `the text of node '${id}'`) ?? [];
-        const options: Option[] = [];
-        const optionsNode = fields.get("options");
-        if (optionsNode !== undefined && optionsNode !== null) {
-            if (!isSeq(optionsNode)) {
-                this.error(optionsNode, `The options of node '${id}' must be a list`);
-            } else {
-                optionsNode.items.forEach((item, index) => {
-                    const option = this.parseOption(item as YamlNode | null, index, id);
-                    if (option) options.push(option);
-                });
-            }
-        }
-        const result: Node = { id, text, options };
-        const presentationNode = fields.get("presentation");
-        if (presentationNode !== undefined) {
-            const presentation = this.parsePresentation(presentationNode, `the presentation of node '${id}'`, true);
-            if (presentation) result.presentation = presentation;
-        }
-        this.declarations.nodes.push(this.locate(result, node));
-    }
-
-    private parseOption(node: YamlNode | null, index: number, nodeId: string): Option | undefined {
-        const where = `option ${index + 1} of node '${nodeId}'`;
-        if (!isMap(node)) {
-            this.error(node, `${where} must be a map`);
-            return undefined;
-        }
-        const fields = this.fields(node, ["label", "requires", "text", "roll", "success", "failure"], where);
-        const labelNode = fields.get("label");
-        if (labelNode === undefined) {
-            this.error(node, `${where} needs a 'label'`);
-            return undefined;
-        }
-        if (isSeq(labelNode)) {
-            this.error(labelNode, `The label of ${where} looks like a list; labels starting with '[' must be quoted`);
-            return undefined;
-        }
-        const label = this.prose(labelNode, `the label of ${where}`);
-        if (!label) return undefined;
-        const result = this.parseOptionResult(fields, node, where);
-        if (!result) return undefined;
-        const option: Option = { index, label, result };
-        const requiresNode = fields.get("requires");
-        if (requiresNode !== undefined) {
-            const requires = this.expression(requiresNode, `the requirement of ${where}`);
-            if (!requires) return undefined;
-            option.requires = requires;
-        }
-        return option;
-    }
-
-    private parseOptionResult(fields: Map<string, YamlNode | null>, node: YamlNode, where: string): OptionResult | undefined {
-        const rollNode = fields.get("roll");
-        if (rollNode === undefined) {
-            for (const key of ["success", "failure"]) {
-                if (fields.has(key)) this.error(fields.get(key) ?? node, `'${key}' only applies to options with a 'roll'`);
-            }
-            const textNode = fields.get("text");
-            const text = textNode === undefined ? [] : this.prose(textNode, `the text of ${where}`);
-            return text ? { kind: "plain", text } : undefined;
-        }
-        if (fields.has("text")) {
-            this.error(fields.get("text") ?? node, `An option with a 'roll' uses 'success' and 'failure' instead of 'text'`);
-        }
-        const chance = this.chance(rollNode, `the roll of ${where}`);
-        if (!chance) return undefined;
-        const outcome = (key: "success" | "failure"): Prose | undefined => {
-            const n = fields.get(key);
-            if (n === undefined) {
-                this.error(node, `${where} has a 'roll', so it needs '${key}' text`);
-                return undefined;
-            }
-            return this.prose(n, `the ${key} text of ${where}`);
-        };
-        const success = outcome("success");
-        const failure = outcome("failure");
-        if (!success || !failure) return undefined;
-        return { kind: "roll", chance, success, failure };
-    }
-
-    // The chance of a roll, in percent: a whole number, or an expression that gives one, like "40 + stealth * 10".
-    private chance(node: YamlNode | null, where: string): Expr | undefined {
-        if (isScalar(node) && typeof node.value === "number") {
-            if (Number.isInteger(node.value)) return { kind: "literal", value: node.value };
-            this.error(node, `${where} must be a whole number of percent`);
-            return undefined;
-        }
-        if (isScalar(node) && typeof node.value === "boolean") {
-            this.error(node, `${where} must be a number of percent or an expression that gives one, not true or false`);
-            return undefined;
-        }
-        return this.expression(node, where);
     }
 
     private parsePresentation(node: YamlNode | null, where: string, allowPreset: true): NodePresentation | undefined;

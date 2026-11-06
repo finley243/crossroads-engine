@@ -1,4 +1,4 @@
-import type { SourceFile } from "../engine/load";
+import type { SourceFile } from "../engine/loadTypes";
 import { startGame } from "./game";
 
 const START_NODE = "start";
