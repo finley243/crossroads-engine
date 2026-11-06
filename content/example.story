@@ -1,4 +1,4 @@
-{node start}
+{node start_disabled}
 {var searched = false}
 {location alley}
 
