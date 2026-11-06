@@ -1,5 +1,5 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
-import type { AmbienceState, EncounterEntry, Expr, MapDef, MapLocation, MusicState, NodePresentation, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
+import type { AmbienceState, EncounterEntry, Expr, MapDef, MapLocation, MusicState, NodePresentation, PresentationDecl, PresentationField, Value, VarDecl } from "./types";
 import { KEYWORDS, tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { ParseError } from "./errors";
