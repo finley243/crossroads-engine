@@ -220,9 +220,14 @@ class Resolver {
         if (result.kind === "plain") {
             return { kind: "plain", text: this.prose(result.text, scope) };
         }
+        const errorsBefore = this.errors.length;
+        const chance = this.expr(result.chance, scope, { allowRandom: false });
+        if (this.errors.length === errorsBefore && !this.isInteger(chance)) {
+            this.error("The chance of a roll has to be a whole number of percent, like 60 or 40 + stealth * 10");
+        }
         return {
             kind: "roll",
-            difficulty: result.difficulty,
+            chance,
             success: this.prose(result.success, scope),
             failure: this.prose(result.failure, scope),
         };

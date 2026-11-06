@@ -1,5 +1,5 @@
 import { ParseError } from "./errors";
-import { DIFFICULTIES, NAME, type FileDeclarations, type LoadError, type SourceFile } from "./parseFile";
+import { NAME, type FileDeclarations, type LoadError, type SourceFile } from "./parseFile";
 import { parseProseSegments } from "./parseProse";
 import { readSections, type Marker, type Part, type Section, type SectionTable } from "./readSections";
 import { lineLookup, scanSource } from "./scan";
@@ -7,7 +7,7 @@ import {
     parseAmbienceField, parseMusicField, parseNameField, parseOptionClauses, parseVarHeader, type OptionClauses,
 } from "./storyHeaders";
 import { tokenize, TokenStream } from "./tokenize";
-import type { Difficulty, Node, NodePresentation, Option, OptionResult, PresentationField, Prose } from "./types";
+import type { Node, NodePresentation, Option, OptionResult, PresentationField, Prose } from "./types";
 
 const SECTIONS: SectionTable = {
     node: {
@@ -138,10 +138,7 @@ function buildResult(section: Section, clauses: OptionClauses, context: Context)
         fail(present.position, `This option has {${present.name}} but is missing {${success ? "failure" : "success"}}`);
     }
     if (!clauses.roll) {
-        fail(section.opener.position, "{success} and {failure} need a roll; add one to the option, like {> roll even}");
-    } else if (!DIFFICULTIES.has(clauses.roll.difficulty)) {
-        const known = [...DIFFICULTIES].join(", ");
-        fail(section.opener.argsPosition + clauses.roll.position, `Unknown difficulty '${clauses.roll.difficulty}'; expected one of: ${known}`);
+        fail(section.opener.position, "{success} and {failure} need a roll; add one to the option, like {> roll 60} or {> roll 40 + stealth * 10}");
     }
     if (!isBlank(afterThen)) {
         fail(afterThen.position, "Text between {then} and {success} would never be shown; put it inside {success} and {failure}");
@@ -150,7 +147,7 @@ function buildResult(section: Section, clauses: OptionClauses, context: Context)
     const successText = prose(success, context);
     const failureText = prose(failure, context);
     if (!successText || !failureText) return undefined;
-    return { kind: "roll", difficulty: clauses.roll.difficulty as Difficulty, success: successText, failure: failureText }; // checked against DIFFICULTIES above
+    return { kind: "roll", chance: clauses.roll, success: successText, failure: failureText };
 }
 
 function findPart(section: Section, name: string): Part | undefined {

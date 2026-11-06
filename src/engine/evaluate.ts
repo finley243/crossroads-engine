@@ -83,7 +83,7 @@ export function evaluate(expr: Expr, context: EvalContext): Value {
         case "arith": {
             const left = int(evaluate(expr.left, context));
             const right = int(evaluate(expr.right, context));
-            return expr.op === "+" ? left + right : left - right;
+            return expr.op === "+" ? left + right : expr.op === "-" ? left - right : left * right;
         }
         case "item": {
             const found = findItem(expr.tags, expr.state, context);
@@ -143,6 +143,11 @@ function compare(op: Extract<Expr, { kind: "compare" }>["op"], left: Value, righ
         case ">=":
             return int(left) >= int(right);
     }
+}
+
+/** Evaluates an expression that has to give a whole number, such as the chance of a roll. */
+export function evaluateInt(expr: Expr, context: EvalContext): number {
+    return int(evaluate(expr, context));
 }
 
 function bool(value: Value): boolean {

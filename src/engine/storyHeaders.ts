@@ -81,7 +81,7 @@ export const parseAmbienceField = (stream: TokenStream) => parseFieldEntries(str
 
 export interface OptionClauses {
     requires?: Expr;
-    roll?: { difficulty: string; position: number };
+    roll?: Expr; // the chance, in percent
 }
 
 export function parseOptionClauses(stream: TokenStream): OptionClauses {
@@ -94,8 +94,7 @@ export function parseOptionClauses(stream: TokenStream): OptionClauses {
             clauses.requires = parseExpression(stream);
         } else if (word.text === "roll") {
             if (clauses.roll) throw new ParseError("This option already has a 'roll'", word.position);
-            const difficulty = stream.expect("name", "a difficulty after 'roll'");
-            clauses.roll = { difficulty: difficulty.text, position: difficulty.position };
+            clauses.roll = parseExpression(stream);
         } else {
             throw new ParseError(`Expected 'if' or 'roll' but found '${word.text}'`, word.position);
         }

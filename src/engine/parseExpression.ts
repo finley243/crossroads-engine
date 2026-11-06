@@ -49,15 +49,24 @@ function parseComparison(stream: TokenStream): Expr {
 }
 
 function parseArithmetic(stream: TokenStream): Expr {
-    let left = parseUnary(stream);
+    let left = parseTerm(stream);
     for (;;) {
         const token = stream.peek();
         if (token.kind !== "operator" || (token.text !== "+" && token.text !== "-")) {
             return left;
         }
         stream.next();
-        left = { kind: "arith", op: token.text, left, right: parseUnary(stream) };
+        left = { kind: "arith", op: token.text, left, right: parseTerm(stream) };
     }
+}
+
+// Multiplication binds tighter than addition and subtraction.
+function parseTerm(stream: TokenStream): Expr {
+    let left = parseUnary(stream);
+    while (stream.match("operator", "*")) {
+        left = { kind: "arith", op: "*", left, right: parseUnary(stream) };
+    }
+    return left;
 }
 
 function parseUnary(stream: TokenStream): Expr {

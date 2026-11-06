@@ -31,7 +31,7 @@ export type Expr =
     | { kind: "and"; left: Expr; right: Expr }
     | { kind: "or"; left: Expr; right: Expr }
     | { kind: "compare"; op: "==" | "!=" | "<" | "<=" | ">" | ">="; left: Expr; right: Expr }
-    | { kind: "arith"; op: "+" | "-"; left: Expr; right: Expr }
+    | { kind: "arith"; op: "+" | "-" | "*"; left: Expr; right: Expr }
     | { kind: "item"; tags: TagExpr; state: ItemState; bind?: string }
     | { kind: "item_count"; tags: TagExpr; state?: ItemState }
     | { kind: "item_prop"; binding: string; prop: "uses" | "has_uses" | "count" }
@@ -110,11 +110,10 @@ export interface NodePresentation extends PresentationDecl {
 
 // Nodes
 
-export type Difficulty = "likely" | "even" | "unlikely";
 
 export type OptionResult = 
     | { kind: "plain"; text: Prose }
-    | { kind: "roll"; difficulty: Difficulty; success: Prose; failure: Prose };
+    | { kind: "roll"; chance: Expr; success: Prose; failure: Prose }; // chance is a whole number of percent
 
 export interface Option {
     index: number;

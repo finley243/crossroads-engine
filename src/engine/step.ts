@@ -1,14 +1,9 @@
 import { RuntimeError } from "./errors";
-import { condition, evaluateProse, finishText, type EvalContext } from "./evaluate";
+import { clampChance } from "./chances";
+import { condition, evaluateInt, evaluateProse, finishText, type EvalContext } from "./evaluate";
 import { travelLocations } from "./mapLocations";
 import { resolvePresentation } from "./presentation";
-import type { AvailableOption, Bindings, Content, Difficulty, GameState, HistoryEntry, OptionView, Rng, SceneView, Transition } from "./types";
-
-export const DIFFICULTY_CHANCES: Record<Difficulty, number> = {
-    likely: 75,
-    even: 50,
-    unlikely: 25
-}
+import type { AvailableOption, Bindings, Content, GameState, HistoryEntry, OptionView, Prose, Rng, SceneView, Transition } from "./types";
 
 export const SCENE_BREAK = "\uE002";
 export const CONTINUE_LABEL = "Continue";
@@ -46,12 +41,13 @@ export function step(content: Content, state: GameState, optionIndex: number, rn
     const option = content.nodes[s.node]?.options[optionIndex];
     if (!available || !option) throw new RuntimeError(`Option ${optionIndex} isn't available in '${s.node}'`);
     const ctx: EvalContext = { content, state: s, bindings: available.bindings, rng };
-    const prose =
-        option.result.kind === "plain"
-            ? option.result.text
-            : rng() * 100 < DIFFICULTY_CHANCES[option.result.difficulty]
-              ? option.result.success
-              : option.result.failure;
+    let prose: Prose;
+    if (option.result.kind === "plain") {
+        prose = option.result.text;
+    } else {
+        const chance = clampChance(evaluateInt(option.result.chance, ctx));
+        prose = rng() * 100 < chance ? option.result.success : option.result.failure;
+    }
     const result = evaluateProse(prose, ctx);
     advance(s, content, rng, result.transition, [result.text], available.label);
     return s;

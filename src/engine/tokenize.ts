@@ -32,7 +32,7 @@ const PUNCTUATION: Record<string, TokenKind> = {
     "|": "bar"
 };
 
-const TOKEN = /(?<ws>\s+)|(?<name>[A-Za-z_]\w*)|(?<number>\d+)|(?<op>==|!=|<=|>=|\+=|-=|[<>=+-])|(?<punct>[(),.:|])/y;
+const TOKEN = /(?<ws>\s+)|(?<name>[A-Za-z_]\w*)|(?<number>\d+)|(?<op>==|!=|<=|>=|\+=|-=|[<>=+*-])|(?<punct>[(),.:|])/y;
 
 export function tokenize(src: string): Token[] {
     const tokens: Token[] = [];

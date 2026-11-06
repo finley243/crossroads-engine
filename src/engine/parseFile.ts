@@ -1,5 +1,5 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
-import type { AmbienceState, Difficulty, EncounterEntry, EncounterTable, Expr, ItemDef, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
+import type { AmbienceState, EncounterEntry, EncounterTable, Expr, ItemDef, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
 import { KEYWORDS, tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { parseProse } from "./parseProse";
@@ -37,7 +37,6 @@ export function parseFile(file: SourceFile): { declarations: FileDeclarations; e
 }
 
 export const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-export const DIFFICULTIES = new Set<string>(["likely", "even", "unlikely"]);
 
 class FileParser {
     private readonly lineCounter = new LineCounter();
@@ -174,12 +173,8 @@ class FileParser {
         if (fields.has("text")) {
             this.error(fields.get("text") ?? node, `An option with a 'roll' uses 'success' and 'failure' instead of 'text'`);
         }
-        const difficulty = this.string(rollNode, `the roll of ${where}`);
-        if (difficulty === undefined) return undefined;
-        if (!DIFFICULTIES.has(difficulty)) {
-            this.error(rollNode, `Unknown difficulty '${difficulty}'; expected likely, even, or unlikely`);
-            return undefined;
-        }
+        const chance = this.chance(rollNode, `the roll of ${where}`);
+        if (!chance) return undefined;
         const outcome = (key: "success" | "failure"): Prose | undefined => {
             const n = fields.get(key);
             if (n === undefined) {
@@ -191,7 +186,21 @@ class FileParser {
         const success = outcome("success");
         const failure = outcome("failure");
         if (!success || !failure) return undefined;
-        return { kind: "roll", difficulty: difficulty as Difficulty, success, failure };
+        return { kind: "roll", chance, success, failure };
+    }
+
+    // The chance of a roll, in percent: a whole number, or an expression that gives one, like "40 + stealth * 10".
+    private chance(node: YamlNode | null, where: string): Expr | undefined {
+        if (isScalar(node) && typeof node.value === "number") {
+            if (Number.isInteger(node.value)) return { kind: "literal", value: node.value };
+            this.error(node, `${where} must be a whole number of percent`);
+            return undefined;
+        }
+        if (isScalar(node) && typeof node.value === "boolean") {
+            this.error(node, `${where} must be a number of percent or an expression that gives one, not true or false`);
+            return undefined;
+        }
+        return this.expression(node, where);
     }
 
     private parsePresentation(node: YamlNode | null, where: string, allowPreset: true): NodePresentation | undefined;
