@@ -3,7 +3,7 @@ import { clampChance } from "./chances";
 import { condition, evaluateInt, evaluateProse, finishText, type EvalContext } from "./evaluate";
 import { travelLocations } from "./mapLocations";
 import { resolvePresentation } from "./presentation";
-import type { AvailableOption, Bindings, Content, GameState, HistoryEntry, OptionView, Prose, Rng, SceneView, Transition } from "./types";
+import type { AvailableOption, Content, GameState, HistoryEntry, OptionView, Prose, Rng, SceneView, Transition } from "./types";
 
 export const SCENE_BREAK = "\uE002";
 export const CONTINUE_LABEL = "Continue";
@@ -15,7 +15,6 @@ export function newGame(content: Content, startNode: string, rng: Rng, contentVe
         vars: {},
         node: startNode,
         stack: [],
-        inventory: {},
         screen: { kind: "node" },
         history: [],
         options: []
@@ -40,7 +39,7 @@ export function step(content: Content, state: GameState, optionIndex: number, rn
     const available = s.options.find(o => o.index === optionIndex);
     const option = content.nodes[s.node]?.options[optionIndex];
     if (!available || !option) throw new RuntimeError(`Option ${optionIndex} isn't available in '${s.node}'`);
-    const ctx: EvalContext = { content, state: s, bindings: available.bindings, rng };
+    const ctx: EvalContext = { content, state: s, rng };
     let prose: Prose;
     if (option.result.kind === "plain") {
         prose = option.result.text;
@@ -122,7 +121,7 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
             if (t.clear) s.stack = []; // whatever was pushed is abandoned, without running its return text
             return enterNode(s, content, t.node, rng);
         case "push": {
-            const frame: GameState["stack"][number] = { node: s.node, bindings: t.bindings };
+            const frame: GameState["stack"][number] = { node: s.node };
             if (t.onReturn) frame.onReturn = t.onReturn;
             if (t.trip) frame.trip = true;
             s.stack.push(frame);
@@ -135,7 +134,7 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
             s.screen = { kind: "node" };
             // The node's own text isn't shown again; only the push's return text, if any.
             if (!frame.onReturn) return { text: "" };
-            return evaluateProse(frame.onReturn, { content, state: s, bindings: frame.bindings, rng });
+            return evaluateProse(frame.onReturn, { content, state: s, rng });
         }
         case "open_map":
             s.screen = { kind: "map", map: t.map, cancelable: t.cancelable };
@@ -148,7 +147,7 @@ function enterNode(s: GameState, content: Content, nodeId: string, rng: Rng): { 
     if (!node) throw new RuntimeError(`Unknown node '${nodeId}'`);
     s.node = nodeId;
     s.screen = { kind: "node" };
-    return evaluateProse(node.text, { content, state: s, bindings: {}, rng });
+    return evaluateProse(node.text, { content, state: s, rng });
 }
 
 function record(s: GameState, pieces: string[], label: string | undefined): void {
@@ -168,11 +167,10 @@ function computeOptions(s: GameState, content: Content, rng: Rng): AvailableOpti
     if (!node) return [];
     const result: AvailableOption[] = [];
     for (const option of node.options) {
-        const ctx: EvalContext = { content, state: s, bindings: {}, rng };
-        const bindings: Bindings | null = option.requires ? condition(option.requires, ctx) : {};
-        if (!bindings) continue;
-        const label = finishText(evaluateProse(option.label, { ...ctx, bindings }).text);
-        result.push({ index: option.index, label, bindings });
+        const ctx: EvalContext = { content, state: s, rng };
+        if (option.requires && !condition(option.requires, ctx)) continue;
+        const label = finishText(evaluateProse(option.label, ctx).text);
+        result.push({ index: option.index, label });
     }
     return result;
 }

@@ -2,17 +2,5 @@ vars:
   credits: 5
   door_open: false
   mood: { enum: [calm, shaken], default: calm }
-
-items:
-  crowbar:
-    name: Rusty Crowbar
-    short: crowbar
-    description: Heavy, bent, and perfect for doors that don't want to open.
-    tags: [force]
-    kind: carried
-  stim:
-    name: Cheap Stim
-    short: stim
-    tags: [absorb]
-    kind: carried
-    consumable: true
+  has_crowbar: false
+  stims: 0

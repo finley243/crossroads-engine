@@ -2,14 +2,13 @@ import { DIRECTIVE_WORDS, EFFECT_WORDS } from "./parseDirective";
 import { DIRECTIVE_MARK } from "./parseProse";
 import { parseStoryFile, STORY_WORDS } from "./parseStoryFile";
 import { parseFile, type FileDeclarations, type LoadError, type Located, type SourceFile } from "./parseFile";
-import type { Branch, Content, EncounterTable, Effect, Expr, ItemDef, Node, NodePresentation, Option, OptionResult, MapDef, PresentationDecl, PresentationField, Prose, ProsePart, TagExpr, VarDecl } from "./types";
+import type { Branch, Content, EncounterTable, Effect, Expr, Node, NodePresentation, Option, OptionResult, MapDef, PresentationDecl, PresentationField, Prose, ProsePart, VarDecl } from "./types";
 
 export type { LoadError, SourceFile } from "./parseFile";
 
 export function loadContent(files: SourceFile[]): { content: Content; errors: LoadError[] } {
     const errors: LoadError[] = [];
     const nodes: Located<Node>[] = [];
-    const items: Located<ItemDef>[] = [];
     const vars: Located<VarDecl>[] = [];
     const functions: Located<{ name: string; body: Expr }>[] = [];
     const presets: Located<{ name: string; decl: PresentationDecl }>[] = [];
@@ -19,7 +18,6 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         const result = parseSourceFile(file);
         errors.push(...result.errors);
         nodes.push(...result.declarations.nodes);
-        items.push(...result.declarations.items);
         vars.push(...result.declarations.vars);
         functions.push(...result.declarations.functions);
         presets.push(...result.declarations.presets);
@@ -29,7 +27,6 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     const functionDecls = collect(functions, f => f.name, "function", errors);
     const content: Content = {
         nodes: collect(nodes, n => n.id, "node", errors),
-        items: collect(items, i => i.id, "item", errors),
         vars: collect(vars, v => v.name, "variable", errors),
         functions: Object.fromEntries(Object.entries(functionDecls).map(([name, f]) => [name, f.body])),
         presets: Object.fromEntries(Object.entries(collect(presets, p => p.name, "preset", errors)).map(([name, p]) => [name, p.decl])),
@@ -114,16 +111,12 @@ function checkVariableNames(vars: Located<VarDecl>[], content: Content, errors: 
 }
 
 interface Scope {
-    nodeId: string | null;
-    bindings: Set<string>;
+    nodeId: string | null; // the node whose local variables are visible, if any
 }
 
 interface ExprContext {
     allowRandom: boolean; // only on the right side of an assignment
 }
-
-const ITEM_PROPS = new Set(["uses", "has_uses", "count"]);
-const ITEM_TEXT_FIELDS = new Set(["name", "short"]);
 
 interface Unresolved {
     kind: "unresolved";
@@ -131,8 +124,6 @@ interface Unresolved {
 }
 
 class Resolver {
-    private readonly tags = new Set<string>();
-    private readonly resetGroups = new Set<string>();
     private readonly locationIds = new Set<string>();
     private readonly resolvedFunctions = new Map<string, Expr>();
     private readonly resolving = new Set<string>();
@@ -140,10 +131,6 @@ class Resolver {
     private where = "";
 
     constructor(private readonly content: Content, private readonly errors: LoadError[], private readonly functionLocations: Map<string, Located<unknown>>) {
-        for (const item of Object.values(content.items)) {
-            item.tags.forEach(tag => this.tags.add(tag));
-            if (item.charges) this.resetGroups.add(item.charges.reset);
-        }
         for (const map of Object.values(content.maps)) {
             map.locations.forEach(location => this.locationIds.add(location.id));
         }
@@ -152,13 +139,13 @@ class Resolver {
     map(located: Located<MapDef>): MapDef {
         const map = located.value;
         this.location = located;
-        const scope: Scope = { nodeId: null, bindings: new Set() };
+        const scope: Scope = { nodeId: null };
         const locations = map.locations.map(location => {
             this.where = `location '${location.id}' of map '${map.id}'`;
             this.checkNode(location.node);
             const resolved = { ...location };
-            if (location.requires) resolved.requires = this.globalCondition(location.requires, scope, "a location's requirement");
-            if (location.unlocked) resolved.unlocked = this.globalCondition(location.unlocked, scope, "a location's unlock condition");
+            if (location.requires) resolved.requires = this.condition(location.requires, scope);
+            if (location.unlocked) resolved.unlocked = this.condition(location.unlocked, scope);
             if (location.encounters) this.checkEncounterTable(location.encounters);
             return resolved;
         });
@@ -172,12 +159,12 @@ class Resolver {
     encounterTable(located: Located<EncounterTable>): EncounterTable {
         const table = located.value;
         this.location = located;
-        const scope: Scope = { nodeId: null, bindings: new Set() };
+        const scope: Scope = { nodeId: null };
         const entries = table.entries.map((entry, index) => {
             this.where = `entry ${index + 1} of encounter table '${table.id}'`;
             this.checkNode(entry.node);
             if (!entry.when) return entry;
-            return { ...entry, when: this.globalCondition(entry.when, scope, "an encounter's condition") };
+            return { ...entry, when: this.condition(entry.when, scope) };
         });
         return { ...table, entries };
     }
@@ -189,7 +176,7 @@ class Resolver {
     node(located: Located<Node>): Node {
         const node = located.value;
         this.location = located;
-        const nodeScope: Scope = { nodeId: node.id, bindings: new Set() };
+        const nodeScope: Scope = { nodeId: node.id };
         this.where = `the text of node '${node.id}'`;
         const text = this.prose(node.text, nodeScope);
         const options = node.options.map(option => {
@@ -203,14 +190,9 @@ class Resolver {
         return result;
     }
 
-    private option(option: Option, nodeScope: Scope): Option {
-        let scope = nodeScope;
+    private option(option: Option, scope: Scope): Option {
         const result: Option = { index: option.index, label: option.label, result: option.result };
-        if (option.requires) {
-            const { expr, bindings } = this.condition(option.requires, nodeScope);
-            result.requires = expr;
-            scope = withBindings(nodeScope, bindings);
-        }
+        if (option.requires) result.requires = this.condition(option.requires, scope);
         result.label = this.prose(option.label, scope);
         result.result = this.optionResult(option.result, scope);
         return result;
@@ -233,17 +215,10 @@ class Resolver {
         };
     }
 
-    // A condition that's checked outside any node, so it can only use global variables and can't bind items.
-    private globalCondition(expr: Expr, scope: Scope, whose: string): Expr {
-        const { expr: resolved, bindings } = this.condition(expr, scope);
-        if (bindings.length > 0) this.error(`Item bindings can't be made in ${whose}`);
-        return resolved;
-    }
-
     presentation<T extends PresentationDecl | NodePresentation>(decl: T, nodeId: string | null, location: { file: string; line: number }, where: string): T {
         this.location = location;
         this.where = where;
-        const scope: Scope = { nodeId, bindings: new Set() };
+        const scope: Scope = { nodeId };
         const result = { ...decl };
         if ("preset" in result && result.preset !== undefined && !this.content.presets[result.preset]) {
             this.error(`Unknown preset '${result.preset}'`);
@@ -251,9 +226,7 @@ class Resolver {
         const field = <V>(f: PresentationField<V> | undefined): PresentationField<V> | undefined =>
             f?.map(entry => {
                 if (entry.when === undefined) return entry;
-                const { expr, bindings } = this.condition(entry.when, scope);
-                if (bindings.length > 0) this.error("Item bindings can't be made in presentation conditions");
-                return { when: expr, value: entry.value };
+                return { when: this.condition(entry.when, scope), value: entry.value };
             });
         for (const entry of result.location ?? []) {
             if (entry.value !== null && !this.locationIds.has(entry.value)) {
@@ -281,7 +254,6 @@ class Resolver {
     private prosePart(part: ProsePart, scope: Scope): ProsePart {
         switch (part.kind) {
             case "text":
-            case "item_text":
                 return part;
             case "value":
                 return this.output(part.expr, scope);
@@ -294,21 +266,14 @@ class Resolver {
 
     private branch(branch: Branch, scope: Scope): Branch {
         if (branch.cond === null) return { cond: null, body: this.parts(branch.body, scope) };
-        const { expr, bindings } = this.condition(branch.cond, scope);
-        return { cond: expr, body: this.parts(branch.body, withBindings(scope, bindings)) };
+        return { cond: this.condition(branch.cond, scope), body: this.parts(branch.body, scope) };
     }
 
     private output(expr: Expr, scope: Scope): ProsePart {
-        if (expr.kind === "var") {
-            const [first, field] = splitName(expr.name);
-            if (field !== undefined && scope.bindings.has(first) && ITEM_TEXT_FIELDS.has(field)) {
-                return { kind: "item_text", binding: first, field: field as "name" | "short" };
-            }
-        }
         const errorsBefore = this.errors.length;
         const resolved = this.expr(expr, scope, { allowRandom: false });
         if (this.errors.length === errorsBefore && !this.isInteger(resolved)) {
-            this.error("Only whole numbers and bound item names (like {d.name}) can be displayed in text");
+            this.error("Only whole numbers can be displayed in text");
         }
         return { kind: "value", expr: resolved };
     }
@@ -317,24 +282,6 @@ class Resolver {
         switch (effect.kind) {
             case "assign":
                 return this.assignment(effect, scope);
-            case "use_item":
-                if (!scope.bindings.has(effect.binding)) {
-                    this.error(`'${effect.binding}' isn't a bound item here; bind one first with item(...) as ${effect.binding}`);
-                }
-                return effect;
-            case "give_item":
-            case "take_item": {
-                if (!this.content.items[effect.item]) this.error(`Unknown item '${effect.item}'`);
-                if (effect.count === undefined) return effect;
-                const count = this.expr(effect.count, scope, { allowRandom: false });
-                if (!this.isInteger(count)) this.error(`The count for ${effect.kind} must be a whole number`);
-                return { ...effect, count };
-            }
-            case "reset_charges":
-                if (!this.resetGroups.has(effect.group)) {
-                    this.error(`No item has charges that reset with the group '${effect.group}'`);
-                }
-                return effect;
             case "goto":
                 this.checkNode(effect.node);
                 return effect;
@@ -366,30 +313,8 @@ class Resolver {
         return { kind: "assign", op: effect.op, target, value };
     }
 
-    private condition(expr: Expr, scope: Scope): { expr: Expr; bindings: string[] } {
-        const bindings: string[] = [];
-        const visit = (e: Expr, guaranteed: boolean): Expr => {
-            if (e.kind === "item" && e.bind !== undefined) {
-                if (!guaranteed) this.error(`The item binding '${e.bind}' can't be made inside 'or' or 'not'`);
-                if (scope.bindings.has(e.bind) || bindings.includes(e.bind)) {
-                    this.error(`'${e.bind}' is already bound here; choose a different name`);
-                }
-                if (this.content.nodes[e.bind]) {
-                    this.error(`The binding '${e.bind}' has the same name as a node`);
-                }
-                this.tagExpr(e.tags);
-                bindings.push(e.bind);
-                return e;
-            }
-            if (e.kind === "and") {
-                const left = visit(e.left, guaranteed);
-                return { kind: "and", left, right: visit(e.right, guaranteed) };
-            }
-            if (e.kind === "or") return { kind: "or", left: visit(e.left, false), right: visit(e.right, false) };
-            if (e.kind === "not") return { kind: "not", operand: visit(e.operand, false) };
-            return this.expr(e, withBindings(scope, bindings), { allowRandom: false });
-        };
-        return { expr: visit(expr, true), bindings };
+    private condition(expr: Expr, scope: Scope): Expr {
+        return this.expr(expr, scope, { allowRandom: false });
     }
 
     functionBody(name: string): Expr {
@@ -408,7 +333,7 @@ class Resolver {
         this.location = this.functionLocations.get(name) ?? this.location;
         this.where = `the body of function '${name}'`;
         this.resolving.add(name);
-        const resolved = this.expr(raw, { nodeId: null, bindings: new Set() }, { allowRandom: false });
+        const resolved = this.expr(raw, { nodeId: null }, { allowRandom: false });
         this.resolving.delete(name);
         this.location = saved.location;
         this.where = saved.where;
@@ -451,15 +376,6 @@ class Resolver {
                     left: this.expr(expr.left, scope, context),
                     right: this.expr(expr.right, scope, context),
                 };
-            case "item":
-                if (expr.bind !== undefined) this.error(`The item binding '${expr.bind}' can only be made in a condition`);
-                this.tagExpr(expr.tags);
-                return expr;
-            case "item_count":
-                this.tagExpr(expr.tags);
-                return expr;
-            case "item_prop":
-                return expr;
             case "random":
             case "chance":
                 if (!context.allowRandom) {
@@ -506,31 +422,12 @@ class Resolver {
     private name(name: string, scope: Scope): Expr | Unresolved {
         const [first, second] = splitName(name);
         if (second === undefined) {
-            if (scope.bindings.has(first)) {
-                this.error(`'${first}' is a bound item, not a value; use one of its properties, like ${first}.uses`);
-                return { kind: "literal", value: false };
-            }
             const full = this.variableName(first, scope, false);
             return full === undefined ? { kind: "unresolved", name: first } : { kind: "var", name: full };
-        } else if (scope.bindings.has(first)) {
-            if (ITEM_PROPS.has(second)) {
-                return { kind: "item_prop", binding: first, prop: second as "uses" | "has_uses" | "count" };
-            }
-            if (ITEM_TEXT_FIELDS.has(second)) {
-                this.error(`${name} is text, so it can only be displayed, like {${name}}, not used in a condition`);
-            } else {
-                this.error(`Bound items don't have a property '${second}' (expected uses, has_uses, or count)`);
-            }
-            return { kind: "literal", value: false };
-        } else {
-            if (this.content.vars[name]) return { kind: "var", name };
-            this.error(
-                this.content.nodes[first]
-                    ? `Node '${first}' has no variable '${second}'`
-                    : `Unknown name '${name}' (not a bound item or a node's variable)`,
-            );
-            return { kind: "literal", value: false };
         }
+        if (this.content.vars[name]) return { kind: "var", name };
+        this.error(this.content.nodes[first] ? `Node '${first}' has no variable '${second}'` : `Unknown name '${name}' (not a node's variable)`);
+        return { kind: "literal", value: false };
     }
 
     private variableName(name: string, scope: Scope, report = true): string | undefined {
@@ -542,20 +439,6 @@ class Resolver {
         }
         if (report) this.error(`Unknown variable '${name}'`);
         return undefined;
-    }
-
-    private tagExpr(tags: TagExpr): void {
-        switch (tags.kind) {
-            case "tag":
-                if (!this.tags.has(tags.name)) this.error(`No item has the tag '${tags.name}'`);
-                return;
-            case "not":
-                return this.tagExpr(tags.operand);
-            case "and":
-            case "or":
-                this.tagExpr(tags.left);
-                this.tagExpr(tags.right);
-        }
     }
 
     private checkNode(id: string): void {
@@ -584,11 +467,8 @@ class Resolver {
             case "and":
             case "or":
             case "compare":
-            case "item":
             case "chance":
                 return true;
-            case "item_prop":
-                return expr.prop === "has_uses";
             default:
                 return false;
         }
@@ -602,10 +482,7 @@ class Resolver {
                 return this.content.vars[expr.name]?.type.kind === "int";
             case "arith":
             case "random":
-            case "item_count":
                 return true;
-            case "item_prop":
-                return expr.prop !== "has_uses";
             default:
                 return false;
         }
@@ -636,12 +513,7 @@ class Resolver {
 
 function producesSomething(part: ProsePart): boolean {
     if (part.kind === "text") return part.text.replaceAll(DIRECTIVE_MARK, "").trim() !== "";
-    return part.kind === "value" || part.kind === "item_text" || part.kind === "do";
-}
-
-function withBindings(scope: Scope, bindings: string[]): Scope {
-    if (bindings.length === 0) return scope;
-    return { nodeId: scope.nodeId, bindings: new Set([...scope.bindings, ...bindings]) };
+    return part.kind === "value" || part.kind === "do";
 }
 
 function splitName(name: string): [string, string | undefined] {

@@ -9,7 +9,7 @@ the wall, and next to it, a vending machine hums and flickers.
 Search the dumpster
 {then}
     You dig through wet cardboard and find a **rusty crowbar**.
-    {do give_item crowbar}
+    {do has_crowbar = true}
     {do searched = true}
 
 {>}
@@ -19,16 +19,16 @@ Visit the vending machine
         The vending machine goes back to flickering.
     {endpush}
 
-{> if item(force) as c and not door_open, roll even}
-[{c.name}] Force the door open
+{> if has_crowbar and not door_open, roll 50}
+[Crowbar] Force the door open
 {then}
     {success}
-        You wedge the {c.short} into the frame and lean on it. The lock gives
+        You wedge the crowbar into the frame and lean on it. The lock gives
         with a crack that echoes down the alley.
         {do door_open = true}
         {do goto inside pause}
     {failure}
-        The {c.short} slips and you slam your knuckles into the steel.
+        The crowbar slips and you slam your knuckles into the steel.
         {do mood = shaken}
 
 {>}
@@ -53,7 +53,7 @@ Buy a stim (3 credits)
 {then}
     The machine spits out a stim, and you pocket it.
     {do credits -= 3}
-    {do give_item stim}
+    {do stims += 1}
 
 {>} Step away {then}
     {do return}
@@ -67,8 +67,8 @@ glows on a desk, still logged in.
 {if mood == shaken}
 Your knuckles are still throbbing.
 {endif}
-{if count(stim) > 0}
-At least you've got {count(stim)} stim in your pocket, just in case.
+{if stims > 0}
+At least you've got {stims} stim in your pocket, just in case.
 {endif}
 
 {> if not read}

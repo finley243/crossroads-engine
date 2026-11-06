@@ -108,10 +108,6 @@ async function main(): Promise<void> {
         }
         const input = await ask();
         if (input === null || input === "q" || input === "quit") break;
-        if (input === "i") {
-            console.log(JSON.stringify(state.inventory, null, 2));
-            continue;
-        }
         if (input === "v") {
             console.log(JSON.stringify(state.vars, null, 2));
             continue;
@@ -124,7 +120,7 @@ async function main(): Promise<void> {
         }
         const choice = view.options[Number(input) - 1];
         if (!choice) {
-            console.log(`Enter a number from 1 to ${view.options.length} (or i for inventory, v for variables, m for the map, q to quit).`);
+            console.log(`Enter a number from 1 to ${view.options.length} (or v for variables, m for the map, q to quit).`);
             continue;
         }
         try {

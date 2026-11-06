@@ -16,14 +16,6 @@ export interface VarDecl {
 
 // Expressions
 
-export type ItemState = "usable" | "blocked" | "owned";
-
-export type TagExpr =
-    | { kind: "tag"; name: string }
-    | { kind: "not"; operand: TagExpr }
-    | { kind: "and"; left: TagExpr; right: TagExpr }
-    | { kind: "or"; left: TagExpr; right: TagExpr };
-
 export type Expr =
     | { kind: "literal"; value: Value }
     | { kind: "var"; name: string } // always the full name after loading
@@ -32,9 +24,6 @@ export type Expr =
     | { kind: "or"; left: Expr; right: Expr }
     | { kind: "compare"; op: "==" | "!=" | "<" | "<=" | ">" | ">="; left: Expr; right: Expr }
     | { kind: "arith"; op: "+" | "-" | "*"; left: Expr; right: Expr }
-    | { kind: "item"; tags: TagExpr; state: ItemState; bind?: string }
-    | { kind: "item_count"; tags: TagExpr; state?: ItemState }
-    | { kind: "item_prop"; binding: string; prop: "uses" | "has_uses" | "count" }
     // Randomness: the loader only allows these on the right side of an assignment.
     | { kind: "random"; min: Expr; max: Expr }
     | { kind: "chance"; percent: Expr }
@@ -45,10 +34,6 @@ export type Expr =
 
 export type Effect =
     | { kind: "assign"; op: "=" | "+=" | "-="; target: string; value: Expr }
-    | { kind: "use_item"; binding: string } // spend a charge from, or consume one of, the bound item
-    | { kind: "give_item"; item: string; count?: Expr }
-    | { kind: "take_item"; item: string; count?: Expr }
-    | { kind: "reset_charges"; group: string }
     | { kind: "goto"; node: string; pause?: boolean; clear?: boolean }
     | { kind: "push"; node: string; onReturn?: Prose; pause?: boolean }
     | { kind: "return"; pause?: boolean }
@@ -56,7 +41,7 @@ export type Effect =
 
 export type Transition =
     | { kind: "goto"; node: string; pause: boolean; clear: boolean }
-    | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; bindings: Bindings; trip?: boolean }
+    | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; trip?: boolean }
     | { kind: "return"; pause: boolean }
     | { kind: "open_map"; map: string; cancelable: boolean };
 
@@ -68,7 +53,6 @@ export type Prose = ProsePart[];
 export type ProsePart =
     | { kind: "text"; text: string } // text with markdown and styling tags
     | { kind: "value"; expr: Expr }
-    | { kind: "item_text"; binding: string; field: "name" | "short" } // displays the bound item's name
     | { kind: "switch"; branches: Branch[] } // {if} parses into a switch
     | { kind: "do"; effect: Effect };
 
@@ -130,23 +114,6 @@ export interface Node {
 }
 
 
-// Items
-
-export interface ItemBase {
-    id: string;
-    name: string;
-    short: string;
-    description: string;
-    tags: string[];
-    charges?: { max: number; reset: string };
-}
-
-export type ItemDef = ItemBase & (
-    | { kind: "cyberware"; slot: string; capacity: number }
-    | { kind: "carried"; consumable?: boolean }
-);
-
-
 // Loaded content
 
 // Maps
@@ -190,7 +157,6 @@ export interface EncounterTable {
 
 export interface Content {
     nodes: Record<string, Node>;
-    items: Record<string, ItemDef>;
     vars: Record<string, VarDecl>;
     functions: Record<string, Expr>;
     presets: Record<string, PresentationDecl>;
@@ -201,15 +167,6 @@ export interface Content {
 
 // Game state
 
-export type Bindings = Record<string, string>; // binding name -> item ID
-
-export interface ItemInstance {
-    id: string;
-    count: number;
-    charges?: number;
-    disabled?: boolean;
-}
-
 export interface HistoryEntry {
     node: string;
     option?: string; // the label of the option that led to this node, if any
@@ -219,13 +176,11 @@ export interface HistoryEntry {
 export interface AvailableOption {
     index: number;
     label: string;
-    bindings: Bindings;
 }
 
 export interface StackFrame {
     node: string;
     onReturn?: Prose;
-    bindings: Bindings;
     trip?: boolean; // an encounter on the way to a destination: the player has left this node's place and not yet reached the next
 }
 
@@ -238,7 +193,6 @@ export interface SaveData {
     vars: Record<string, Value>;
     node: string;
     stack: StackFrame[];
-    inventory: Record<string, ItemInstance>;
     screen: Screen;
     history: HistoryEntry[];
     pending?: Transition;

@@ -20,7 +20,7 @@ export interface Token {
 }
 
 export const KEYWORDS = new Set([
-    "and", "or", "not", "as", "true", "false", "item", "count", "random", "chance"
+    "and", "or", "not", "true", "false", "random", "chance"
 ]);
 
 const PUNCTUATION: Record<string, TokenKind> = {

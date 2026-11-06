@@ -1,5 +1,5 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
-import type { AmbienceState, EncounterEntry, EncounterTable, Expr, ItemDef, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
+import type { AmbienceState, EncounterEntry, EncounterTable, Expr, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
 import { KEYWORDS, tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { parseProse } from "./parseProse";
@@ -24,7 +24,6 @@ export interface Located<T> {
 
 export interface FileDeclarations {
     nodes: Located<Node>[];
-    items: Located<ItemDef>[];
     vars: Located<VarDecl>[];
     functions: Located<{ name: string; body: Expr }>[];
     presets: Located<{ name: string; decl: PresentationDecl }>[];
@@ -41,7 +40,7 @@ export const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 class FileParser {
     private readonly lineCounter = new LineCounter();
     private readonly errors: LoadError[] = [];
-    private readonly declarations: FileDeclarations = { nodes: [], items: [], vars: [], functions: [], presets: [], maps: [], encounters: [] };
+    private readonly declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [] };
 
     constructor(private readonly file: SourceFile) {}
 
@@ -57,11 +56,10 @@ class FileParser {
             this.error(root, "A content file must be a map");
             return this.result();
         }
-        const fields = this.fields(root, ["vars", "functions", "nodes", "items", "presets", "maps", "encounters"], "the top level of the file");
+        const fields = this.fields(root, ["vars", "functions", "nodes", "presets", "maps", "encounters"], "the top level of the file");
         this.forEachEntry(fields.get("vars"), "vars", (name, node) => this.parseVar(name, node, null));
         this.forEachEntry(fields.get("functions"), "functions", (name, node) => this.parseFunction(name, node));
         this.forEachEntry(fields.get("nodes"), "nodes", (id, node) => this.parseNode(id, node));
-        this.forEachEntry(fields.get("items"), "items", (id, node) => this.parseItem(id, node));
         this.forEachEntry(fields.get("presets"), "presets", (name, node) => this.parsePreset(name, node));
         this.forEachEntry(fields.get("maps"), "maps", (id, node) => this.parseMap(id, node));
         this.forEachEntry(fields.get("encounters"), "encounters", (id, node) => this.parseEncounterTable(id, node));
@@ -302,64 +300,6 @@ class FileParser {
         return undefined;
     }
 
-    private parseItem(id: string, node: YamlNode | null): void {
-        const where = `item '${id}'`;
-        if (!isMap(node)) return this.error(node, `${where} must be a map`);
-        const fields = this.fields(
-            node,
-            ["name", "short", "description", "tags", "kind", "slot", "capacity", "consumable", "charges"],
-            where,
-        );
-        const nameNode = this.required(fields, "name", node, where);
-        const name = nameNode === undefined ? undefined : this.string(nameNode, `the name of ${where}`);
-        if (name === undefined) return;
-        const short = fields.has("short") ? this.string(fields.get("short") ?? null, `the short name of ${where}`) : name;
-        const description = fields.has("description") ? this.string(fields.get("description") ?? null, `the description of ${where}`) : "";
-        const tags = fields.has("tags") ? this.stringList(fields.get("tags"), `the tags of ${where}`) : [];
-        if (short === undefined || description === undefined || tags === undefined) return;
-        if (!tags.includes(id)) tags.push(id); // every item is implicitly tagged with its own id
-        const base = { id, name, short, description, tags };
-        let charges: { max: number; reset: string } | undefined;
-        const chargesNode = fields.get("charges");
-        if (chargesNode !== undefined) {
-            if (!isMap(chargesNode)) return this.error(chargesNode, `The charges of ${where} must be { max, reset }`);
-            const cf = this.fields(chargesNode, ["max", "reset"], `the charges of ${where}`);
-            const maxNode = this.required(cf, "max", chargesNode, `The charges of ${where}`);
-            const resetNode = this.required(cf, "reset", chargesNode, `The charges of ${where}`);
-            const max = maxNode === undefined ? undefined : this.integer(maxNode, `the maximum charges of ${where}`);
-            const reset = resetNode === undefined ? undefined : this.string(resetNode, `the reset group of ${where}`);
-            if (max === undefined || reset === undefined) return;
-            charges = { max, reset };
-        }
-        const kindNode = this.required(fields, "kind", node, where);
-        const kind = kindNode === undefined ? undefined : this.string(kindNode, `the kind of ${where}`);
-        let item: ItemDef;
-        if (kind === "cyberware") {
-            const slotNode = this.required(fields, "slot", node, `Cyberware ${where}`);
-            const capacityNode = this.required(fields, "capacity", node, `Cyberware ${where}`);
-            const slot = slotNode === undefined ? undefined : this.string(slotNode, `the slot of ${where}`);
-            const capacity = capacityNode === undefined ? undefined : this.integer(capacityNode, `the capacity of ${where}`);
-            if (fields.has("consumable")) this.error(fields.get("consumable") ?? node, `Cyberware can't be consumable`);
-            if (slot === undefined || capacity === undefined) return;
-            item = { ...base, kind, slot, capacity };
-        } else if (kind === "carried") {
-            for (const key of ["slot", "capacity"]) {
-                if (fields.has(key)) this.error(fields.get(key) ?? node, `'${key}' only applies to cyberware`);
-            }
-            item = { ...base, kind };
-            if (fields.has("consumable")) {
-                const consumable = this.boolean(fields.get("consumable") ?? null, `'consumable' on ${where}`);
-                if (consumable === undefined) return;
-                item.consumable = consumable;
-            }
-        } else {
-            if (kind !== undefined) this.error(fields.get("kind") ?? node, `Unknown item kind '${kind}'; expected cyberware or carried`);
-            return;
-        }
-        if (charges) item.charges = charges;
-        this.declarations.items.push(this.locate(item, node));
-    }
-
     private parseMap(id: string, node: YamlNode | null): void {
         const where = `map '${id}'`;
         if (!isMap(node)) return this.error(node, `${where} must be a map`);
@@ -591,12 +531,6 @@ class FileParser {
     private integer(node: YamlNode | null, where: string): number | undefined {
         if (isScalar(node) && typeof node.value === "number" && Number.isInteger(node.value)) return node.value;
         this.error(node, `Expected a whole number for ${where}`);
-        return undefined;
-    }
-
-    private boolean(node: YamlNode | null, where: string): boolean | undefined {
-        if (isScalar(node) && typeof node.value === "boolean") return node.value;
-        this.error(node, `Expected true or false for ${where}`);
         return undefined;
     }
 

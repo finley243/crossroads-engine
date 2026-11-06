@@ -61,7 +61,6 @@ export function travel(content: Content, state: GameState, locationId: string, r
               kind: "push",
               node: encounter.node,
               pause: false,
-              bindings: {},
               trip: true,
               onReturn: [{ kind: "do", effect: { kind: "goto", node: destination.node } }],
           }

@@ -11,8 +11,8 @@ export function encounterTableFor(map: MapDef, destination: MapLocation): string
 export function rollEncounter(content: Content, state: GameState, tableId: string, rng: Rng): EncounterEntry | undefined {
     const table = content.encounters[tableId];
     if (!table) return undefined;
-    const ctx: EvalContext = { content, state, bindings: {}, rng };
-    const eligible = table.entries.filter(entry => !entry.when || condition(entry.when, ctx) !== null);
+    const ctx: EvalContext = { content, state, rng };
+    const eligible = table.entries.filter(entry => !entry.when || condition(entry.when, ctx));
     const total = table.nothing + eligible.reduce((sum, entry) => sum + entry.weight, 0);
     if (total <= 0) return undefined;
     let roll = rng() * total;
