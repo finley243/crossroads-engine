@@ -1,8 +1,7 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
-import type { AmbienceState, EncounterEntry, EncounterTable, Expr, MapDef, MapLocation, MusicState, Node, NodePresentation, Option, OptionResult, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
+import type { AmbienceState, EncounterEntry, Expr, MapDef, MapLocation, MusicState, NodePresentation, PresentationDecl, PresentationField, Prose, Value, VarDecl } from "./types";
 import { KEYWORDS, tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
-import { parseProse } from "./parseProse";
 import { ParseError } from "./errors";
 import { NAME, type FileDeclarations, type LoadError, type Located, type SourceFile } from "./loadTypes";
 
@@ -29,7 +28,7 @@ class FileParser {
             this.error(root, "A content file must be a map");
             return this.result();
         }
-        const fields = this.fields(root, ["vars", "functions", "nodes", "presets", "maps", "encounters"], "the top level of the file");
+        const fields = this.fields(root, ["vars", "functions", "presets", "maps", "encounters"], "the top level of the file");
         this.forEachEntry(fields.get("vars"), "vars", (name, node) => this.parseVar(name, node, null));
         this.forEachEntry(fields.get("functions"), "functions", (name, node) => this.parseFunction(name, node));
         this.forEachEntry(fields.get("presets"), "presets", (name, node) => this.parsePreset(name, node));
@@ -310,16 +309,6 @@ class FileParser {
     private parsePreset(name: string, node: YamlNode | null): void {
         const decl = this.parsePresentation(node, `preset '${name}'`, false);
         if (decl) this.declarations.presets.push(this.locate({ name, decl }, node));
-    }
-    
-    private prose(node: YamlNode | null, where: string): Prose | undefined {
-        const source = this.string(node, where);
-        if (source === undefined || node === null) return undefined;
-        try {
-            return parseProse(source);
-        } catch (e) {
-            return this.parseFailure(e, node, source, where);
-        }
     }
 
     private expression(node: YamlNode | null, where: string): Expr | undefined {
