@@ -213,6 +213,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
                 viewport?.zoomBy(Math.exp(0.4 * action.step));
                 return true;
             case "choose":
+            case "history":
                 return false;
         }
     }

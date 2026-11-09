@@ -4,7 +4,7 @@ import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, sceneView, step } from "../engine/step";
 import type { OptionView } from "../engine/types";
 import { inlineHtml, textToHtml } from "./formatText";
-import { createHistory, type HistoryElements } from "./history";
+import { createHistoryScreen } from "./historyScreen";
 import { listenForInput, type InputAction } from "./input";
 import { createMapScreen, type MapScreenHandlers } from "./mapScreen";
 import { settings } from "./settings";
@@ -16,8 +16,9 @@ export interface GamePage {
     status: HTMLElement;
     map: HTMLElement;
     mapButton: HTMLElement;
-    background: HTMLElement; // everything behind the map screen
-    history: HistoryElements;
+    background: HTMLElement; // everything behind the map and history screens
+    historyScreen: HTMLElement;
+    historyButton: HTMLElement;
 }
 
 const rng = Math.random;
@@ -41,7 +42,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         document.documentElement.classList.toggle("keyboard-nav", value); // hides the mouse cursor, until the mouse is used
     }
     const mapScreen = createMapScreen(page.map, page.background);
-    const transcript = createHistory(page.history);
+    const historyScreen = createHistoryScreen(page.historyScreen, page.background);
     function showScene(animate = true): void {
         if (state.screen.kind === "map") {
             openTravelMap();
@@ -51,10 +52,10 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         const view = sceneView(content, state, rng);
         visibleOptions = [];
         document.documentElement.dataset.theme = view.presentation.theme ?? "";
-        transcript.sync(state.history.slice(0, -1)); // everything before the scene being shown
+        page.historyButton.hidden = state.history.length <= 1; // there's nothing to look at until a scene has been left behind
         page.story.innerHTML = textToHtml(view.latestEntry.text);
         page.options.replaceChildren();
-        transcript.showCurrentScene();
+        document.defaultView?.scrollTo({ top: 0, behavior: "instant" }); // a long scene starts at its beginning
         if (animate && canType() && settings.typingCharsPerSecond > 0) {
             skipTyping = typeText(page.story, settings.typingCharsPerSecond, () => {
                 skipTyping = undefined;
@@ -123,6 +124,13 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         mapScreen.show(mapView(content, state, mapId, rng), { onClose: () => mapScreen.hide() });
         return true;
     }
+    // The earlier scenes, which the player can look back through at any time. It never changes the game.
+    function openHistory(): boolean {
+        if (mapScreen.isOpen() || historyScreen.isOpen() || state.history.length <= 1) return false;
+        skipTyping?.();
+        historyScreen.show(state.history.slice(0, -1)); // everything before the scene that's showing
+        return true;
+    }
     function attempt(action: () => void): void {
         page.status.textContent = "";
         try {
@@ -134,16 +142,9 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     function handleAction(action: InputAction): boolean {
         setUsingKeyboard(true);
         if (mapScreen.isOpen()) return mapScreen.handleAction(action);
+        if (historyScreen.isOpen()) return historyScreen.handleAction(action);
         if (action.kind === "map") return openReadOnlyMap();
-        let backFromHistory = false;
-        if ((action.kind === "move" || action.kind === "confirm" || action.kind === "choose") && transcript.isAway()) {
-            transcript.showCurrentScene();
-            if (action.kind !== "move") {
-                if (action.kind === "confirm") skipTyping?.();
-                return true;
-            }
-            backFromHistory = true;
-        }
+        if (action.kind === "history") return openHistory();
         if (skipTyping) {
             if (action.kind !== "confirm") return false;
             skipTyping();
@@ -151,7 +152,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         switch (action.kind) {
             case "move":
-                return moveSelection(action.direction === "down" || action.direction === "right" ? 1 : -1, !backFromHistory);
+                return moveSelection(action.direction === "down" || action.direction === "right" ? 1 : -1);
             case "confirm": {
                 const selected = optionButtons().find(button => button === document.activeElement);
                 selected?.click();
@@ -167,16 +168,16 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
                 return false;
         }
     }
-    // Highlighting an option scrolls to it, unless that would scroll past the start of the text the view has just returned to.
-    function moveSelection(step: 1 | -1, scroll = true): boolean {
+    function moveSelection(step: 1 | -1): boolean {
         const buttons = optionButtons();
         if (buttons.length === 0) return false;
         const current = buttons.findIndex(button => button === document.activeElement);
         const next = current === -1 ? (step === 1 ? 0 : buttons.length - 1) : (current + step + buttons.length) % buttons.length;
-        buttons[next]!.focus({ preventScroll: !scroll });
+        buttons[next]!.focus();
         return true;
     }
     page.mapButton.addEventListener("click", () => openReadOnlyMap());
+    page.historyButton.addEventListener("click", () => openHistory());
     document.addEventListener("click", () => skipTyping?.(), { capture: true });
     document.addEventListener("mousemove", event => {
         if (mouseMoved(event)) setUsingKeyboard(false);

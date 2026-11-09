@@ -182,175 +182,15 @@ main {
     white-space: pre-wrap;
 }
 
-/* History. The earlier scenes sit above the current one in the same scrolling page. Scroll snapping, with the gap
-   between them, makes going up a move into the history and not just a higher spot on the page. */
 html {
     scrollbar-width: thin;
     scrollbar-color: var(--muted) transparent;
 }
 
-html.has-history {
-    scroll-snap-type: y mandatory;
-}
-
-/* The history comes after the scene in the page, so that a screen reader reads the scene first, and is moved above it here. */
-#page {
-    display: flex;
-    flex-direction: column;
-}
-
-#history {
-    order: -1;
-}
-
-#page > main,
-#page > #history {
-    width: 100%;
-}
-
-/* While the map is open, the page behind it can't be scrolled. */
+/* While the map or the history is open, the page behind it can't be scrolled. */
 html.screen-open {
     overflow: hidden;
     scrollbar-gutter: stable;
-}
-
-main {
-    scroll-snap-align: start;
-    scroll-snap-stop: always; /* a hard scroll stops at the scene instead of passing it */
-}
-
-#history {
-    --history-gap: 480px;
-    max-width: 42rem;
-    margin: 0 auto;
-    padding: 0 1.25rem;
-    opacity: 0.2; /* brightens as you scroll up into it (set in history.ts) */
-    color: var(--muted);
-    font-size: 1rem;
-    line-height: 1.55;
-}
-
-/* The padding is part of what the snapping holds on to, so scrolling to the top shows all of it. */
-#history-entries {
-    scroll-snap-align: end;
-    padding: 5rem 0 2rem;
-}
-
-.history-entry {
-    padding: 1.1rem 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.history-entry:empty {
-    display: none;
-}
-
-.history-entry p {
-    margin: 0 0 0.6em;
-}
-
-.history-entry p:last-child {
-    margin-bottom: 0;
-}
-
-.history-entry .history-choice {
-    margin-bottom: 0.35rem;
-    color: var(--accent);
-    opacity: 0.75;
-    font-size: 0.85rem;
-}
-
-.history-choice::before {
-    content: "\203A\00a0" / "";
-}
-
-.history-entry hr {
-    border: none;
-    border-top: 1px solid var(--muted);
-    margin: 1.2em auto;
-    width: 30%;
-    opacity: 0.4;
-}
-
-#history-gap {
-    height: var(--history-gap);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#history-gap::before {
-    content: "";
-    width: 40%;
-    height: 1px;
-    background: var(--accent);
-    opacity: 0.3;
-}
-
-/* A faint hint that there's more above, while resting on the scene. */
-#history-hint {
-    position: fixed;
-    top: 0.7rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 4;
-    pointer-events: none;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-}
-
-#history-hint[hidden],
-#history-now[hidden] {
-    display: none;
-}
-
-/* The chevrons are drawn, not typed, so they look the same whichever font the system has. */
-#history-hint::before,
-#history-now::before {
-    content: "";
-    flex: none;
-    width: 0.95em;
-    height: 0.95em;
-    background: currentColor;
-}
-
-#history-hint::before {
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 15l7-7 7 7'/%3E%3C/svg%3E") center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 15l7-7 7 7'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-
-/* Takes you back to the scene from far up in the history. */
-#history-now {
-    position: fixed;
-    bottom: 1.25rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 4;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.95rem;
-    font: inherit;
-    font-size: 0.8rem;
-    color: var(--text);
-    background: color-mix(in srgb, var(--background) 88%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-    cursor: pointer;
-}
-
-#history-now::before {
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 9l7 7 7-7'/%3E%3C/svg%3E") center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 9l7 7 7-7'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-
-#history-now:hover,
-#history-now:focus {
-    border-color: var(--accent);
-    outline: none;
 }
 
 .problems {
@@ -595,12 +435,17 @@ main {
     cursor: default;
 }
 
-/* A way to look at the map at any time. */
-#map-button {
+/* The ways to look at the map and the history at any time. */
+#corner-buttons {
     position: fixed;
     top: 0.75rem;
     right: 0.75rem;
     z-index: 5;
+    display: flex;
+    gap: 0.5rem;
+}
+
+#corner-buttons button {
     font: inherit;
     font-size: 0.9rem;
     color: var(--muted);
@@ -611,11 +456,151 @@ main {
     cursor: pointer;
 }
 
-#map-button:hover,
-#map-button:focus {
+#corner-buttons button[hidden] {
+    display: none;
+}
+
+#corner-buttons button:hover,
+#corner-buttons button:focus {
     color: var(--text);
     border-color: var(--text);
     outline: none;
+}
+
+/* The history: the earlier scenes in an overlay, with a list that scrolls by itself. */
+.history-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem 1.5rem;
+    background: color-mix(in srgb, var(--background) 82%, transparent);
+    outline: none;
+}
+
+.history-screen[hidden] {
+    display: none;
+}
+
+.history-panel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 42rem;
+    height: 100%;
+    max-height: 46rem;
+    background: var(--background);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    animation: history-in 0.18s ease-out;
+}
+
+@keyframes history-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.75rem);
+    }
+}
+
+.history-head {
+    flex: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.history-head h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: normal;
+}
+
+.history-close {
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--muted);
+    border-radius: 1px;
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+}
+
+.history-close:hover,
+.history-close:focus {
+    color: var(--text);
+    border-color: var(--text);
+    outline: none;
+}
+
+.history-log {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain; /* a scroll that reaches the end doesn't carry on into the page behind */
+    padding: 0.25rem 1.25rem 1rem;
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1.55;
+    outline: none;
+}
+
+.history-empty {
+    margin: 1rem 0;
+    font-style: italic;
+}
+
+.history-empty[hidden] {
+    display: none;
+}
+
+.history-entry {
+    padding: 1.1rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.history-entry:first-child {
+    border-top: none;
+}
+
+.history-entry:empty {
+    display: none;
+}
+
+.history-entry p {
+    margin: 0 0 0.6em;
+}
+
+.history-entry p:last-child {
+    margin-bottom: 0;
+}
+
+.history-entry .history-choice {
+    margin-bottom: 0.35rem;
+    color: var(--accent);
+    opacity: 0.75;
+    font-size: 0.85rem;
+}
+
+.history-choice::before {
+    content: "\203A\00a0" / "";
+}
+
+.history-entry hr {
+    border: none;
+    border-top: 1px solid var(--muted);
+    margin: 1.2em auto;
+    width: 30%;
+    opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .history-panel {
+        animation: none;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

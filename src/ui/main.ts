@@ -19,13 +19,6 @@ startGame({
     map: element("map-screen"),
     mapButton: element("map-button"),
     background: element("page"),
-    history: {
-        root: element("history"),
-        entries: element("history-entries"),
-        scene: element("game"),
-        story: element("story"),
-        options: element("options"),
-        hint: element("history-hint"),
-        now: element("history-now"),
-    },
+    historyScreen: element("history-screen"),
+    historyButton: element("history-button"),
 }, sources, START_NODE);
