@@ -5,7 +5,8 @@ export interface SectionKind {
     parent?: string; // the kind of section this one must be inside; none means top level
     firstPart: string; // name of the part before any divider, like a node's "text"
     headers: Record<string, "once" | "many">; // directives allowed before the first part has any content
-    dividers: Record<string, string[]>; // directives that start a new part, and which parts they may follow
+    dividers: Record<string, string[]>; // directives that start a new part, and which parts they may follow. A divider can be more than one word, like "then success"
+    renamed?: Record<string, string>; // old divider words and what they're called now, so that using one gets a message that says so
 }
 
 export type SectionTable = Record<string, SectionKind>;
@@ -49,12 +50,14 @@ class SectionReader {
     private readonly openers = new Map<string, string>();
     private readonly headerOwners = new Map<string, string>();
     private readonly dividerOwners = new Map<string, string>();
+    private readonly renamed = new Map<string, { kind: string; to: string }>();
 
     constructor(private readonly table: SectionTable) {
         for (const [kind, spec] of Object.entries(table)) {
             this.openers.set(spec.opener, kind);
             for (const word of Object.keys(spec.headers)) this.headerOwners.set(word, kind);
             for (const word of Object.keys(spec.dividers)) this.dividerOwners.set(word, kind);
+            for (const [from, to] of Object.entries(spec.renamed ?? {})) this.renamed.set(from, { kind, to });
         }
     }
 
@@ -83,8 +86,24 @@ class SectionReader {
         if (openedKind) return this.openSection(openedKind, marker);
         const headerOwner = this.headerOwners.get(marker.word);
         if (headerOwner) return this.addHeader(headerOwner, marker);
+        const spaced = segment.source.trim().replace(/\s+/g, " ");
+        const wholeOwner = this.dividerOwners.get(spaced);
+        if (wholeOwner) return this.addDivider(wholeOwner, { ...marker, word: spaced, args: "" }); // a divider of two words, like "then success"
         const dividerOwner = this.dividerOwners.get(marker.word);
-        if (dividerOwner) return this.addDivider(dividerOwner, marker);
+        if (dividerOwner) {
+            if (marker.args.trim() !== "") {
+                // Not a divider at all, so what follows stays with the part before it, and there's no second complaint about order.
+                this.problem(marker.position, this.unexpectedWords(dividerOwner, marker.word));
+                return;
+            }
+            return this.addDivider(dividerOwner, marker);
+        }
+        const renamed = this.renamed.get(marker.word);
+        if (renamed && this.current()?.kind === renamed.kind) {
+            const replacesThen = this.lastPart(this.current()!).name === "then"; // the old way needed a {then} before the first of them
+            this.problem(marker.position, `{${marker.word}} is now written {${renamed.to}}${replacesThen ? ", in place of the {then} before it" : ""}`);
+            return this.addDivider(renamed.kind, { ...marker, word: renamed.to, args: "" }, false); // the message above is enough, without one about the order too
+        }
         const current = this.current();
         if (!current) {
             this.problem(segment.position, "Directives have to be inside a section; there's no section open yet");
@@ -136,22 +155,28 @@ class SectionReader {
         current.headers.push(marker);
     }
 
-    private addDivider(ownerKind: string, marker: Marker): void {
+    private addDivider(ownerKind: string, marker: Marker, checkOrder = true): void {
         const owner = this.table[ownerKind]!;
         const current = this.current();
         if (!current || current.kind !== ownerKind) {
-            this.problem(marker.position, `{${marker.word}} can only be used inside a ${ownerKind} (opened with {${owner.opener}})`);
+            this.problem(marker.position, `{${marker.word}} can only be used inside ${/^[aeiou]/.test(ownerKind) ? "an" : "a"} ${ownerKind} (opened with {${owner.opener}})`);
             return;
         }
         const previous = this.lastPart(current);
         const allowedAfter = owner.dividers[marker.word]!;
         if (current.parts.some(part => part.name === marker.word)) {
             this.problem(marker.position, `{${marker.word}} was already used in this ${ownerKind}`);
-        } else if (!allowedAfter.includes(previous.name)) {
+        } else if (checkOrder && !allowedAfter.includes(previous.name)) {
             const names = allowedAfter.map(name => (name === owner.firstPart ? `the ${ownerKind}'s ${name}` : `{${name}}`));
             this.problem(marker.position, `{${marker.word}} has to come after ${names.join(" or ")}`);
         }
         current.parts.push({ name: marker.word, segments: [], position: marker.position });
+    }
+
+    private unexpectedWords(ownerKind: string, word: string): string {
+        const longer = Object.keys(this.table[ownerKind]!.dividers).filter(divider => divider.startsWith(`${word} `));
+        const forms = longer.length > 0 ? `; the forms with a second word are ${longer.map(divider => `{${divider}}`).join(" and ")}` : "";
+        return `{${word}} can't have anything after it${forms}`;
     }
 
     private current(): Section | undefined {

@@ -21,13 +21,14 @@ const SECTIONS: SectionTable = {
         parent: "node",
         firstPart: "label",
         headers: {},
-        dividers: { then: ["label"], success: ["then", "failure"], failure: ["then", "success"] },
+        dividers: { then: ["label"], "then success": ["label", "then failure"], "then failure": ["label", "then success"] },
+        renamed: { success: "then success", failure: "then failure" },
     },
 };
 
 export const STORY_WORDS = new Set(
     Object.values(SECTIONS)
-        .flatMap(kind => [kind.opener, ...Object.keys(kind.headers), ...Object.keys(kind.dividers)])
+        .flatMap(kind => [kind.opener, ...Object.keys(kind.headers), ...Object.keys(kind.dividers), ...Object.keys(kind.renamed ?? {})])
         .filter(word => word !== ">"),
 );
 
@@ -105,8 +106,8 @@ function buildOption(section: Section, index: number, context: Context): Option 
     if (label?.length === 0) {
         report(context, section.opener.position, "This option has no label; write the text the player will see between {>} and {then}");
     }
-    if (!findPart(section, "then")) {
-        report(context, section.opener.position, "This option never reaches {then}, which ends the label and starts what happens when it's chosen");
+    if (!findPart(section, "then") && !findPart(section, "then success") && !findPart(section, "then failure")) {
+        report(context, section.opener.position, "This option never reaches {then}, which ends the label and starts what happens when it's chosen (for a roll, {then success} and {then failure})");
         return undefined;
     }
     const result = clauses && buildResult(section, clauses, context);
@@ -117,15 +118,16 @@ function buildOption(section: Section, index: number, context: Context): Option 
 }
 
 function buildResult(section: Section, clauses: OptionClauses, context: Context): OptionResult | undefined {
-    const afterThen = findPart(section, "then")!;
-    const success = findPart(section, "success");
-    const failure = findPart(section, "failure");
-    if (!success && !failure) {
+    const plain = findPart(section, "then");
+    const success = findPart(section, "then success");
+    const failure = findPart(section, "then failure");
+    if (plain) {
+        if (success || failure) return undefined; // the section reader has already said that they can't be mixed
         if (clauses.roll) {
-            report(context, section.opener.position, "This option has a roll, so it needs {success} and {failure} sections after {then}");
+            report(context, section.opener.position, "This option has a roll, so it needs {then success} and {then failure} instead of {then}");
             return undefined;
         }
-        const text = prose(afterThen, context);
+        const text = prose(plain, context);
         return text && { kind: "plain", text };
     }
     let valid = true;
@@ -135,13 +137,10 @@ function buildResult(section: Section, clauses: OptionClauses, context: Context)
     };
     if (!success || !failure) {
         const present = success ?? failure!;
-        fail(present.position, `This option has {${present.name}} but is missing {${success ? "failure" : "success"}}`);
+        fail(present.position, `This option has {${present.name}} but is missing {${success ? "then failure" : "then success"}}`);
     }
     if (!clauses.roll) {
-        fail(section.opener.position, "{success} and {failure} need a roll; add one to the option, like {> roll 60} or {> roll 40 + stealth * 10}");
-    }
-    if (!isBlank(afterThen)) {
-        fail(afterThen.position, "Text between {then} and {success} would never be shown; put it inside {success} and {failure}");
+        fail(section.opener.position, "{then success} and {then failure} need a roll; add one to the option, like {> roll 60} or {> roll 40 + stealth * 10}");
     }
     if (!valid || !success || !failure || !clauses.roll) return undefined;
     const successText = prose(success, context);
@@ -152,10 +151,6 @@ function buildResult(section: Section, clauses: OptionClauses, context: Context)
 
 function findPart(section: Section, name: string): Part | undefined {
     return section.parts.find(part => part.name === name);
-}
-
-function isBlank(part: Part): boolean {
-    return part.segments.every(segment => segment.kind === "comment" || (segment.kind === "text" && segment.text.trim() === ""));
 }
 
 function prose(part: Part, context: Context): Prose | undefined {

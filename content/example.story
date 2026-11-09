@@ -21,15 +21,14 @@ Visit the vending machine
 
 {> if has_crowbar and not door_open, roll 50}
 [Crowbar] Force the door open
-{then}
-    {success}
-        You wedge the crowbar into the frame and lean on it. The lock gives
-        with a crack that echoes down the alley.
-        {do door_open = true}
-        {do goto inside pause}
-    {failure}
-        The crowbar slips and you slam your knuckles into the steel.
-        {do mood = shaken}
+{then success}
+    You wedge the crowbar into the frame and lean on it. The lock gives
+    with a crack that echoes down the alley.
+    {do door_open = true}
+    {do goto inside pause}
+{then failure}
+    The crowbar slips and you slam your knuckles into the steel.
+    {do mood = shaken}
 
 {>}
 Leave the alley
