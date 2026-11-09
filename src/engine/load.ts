@@ -99,6 +99,13 @@ function checkVariableNames(vars: Located<VarDecl>[], content: Content, errors: 
                 message: `'${shortName}' can't be used as a variable name, since it has a special meaning in directives`,
             });
         }
+        if (fullName === "rerolls" && located.value.type.kind !== "int") {
+            errors.push({
+                file: located.file,
+                line: located.line,
+                message: "'rerolls' has to be a whole number: it's how many re-rolls the player has",
+            });
+        }
         if (dot !== -1 && content.vars[shortName]) {
             errors.push({
                 file: located.file,
@@ -206,12 +213,14 @@ class Resolver {
         if (this.errors.length === errorsBefore && !this.isInteger(chance)) {
             this.error("The chance of a roll has to be a whole number of percent, like 60 or 40 + stealth * 10");
         }
-        return {
+        const resolved: OptionResult = {
             kind: "roll",
             chance,
             success: this.prose(result.success, scope),
             failure: this.prose(result.failure, scope),
         };
+        if (result.noReroll) resolved.noReroll = true;
+        return resolved;
     }
 
     presentation<T extends PresentationDecl | NodePresentation>(decl: T, nodeId: string | null, location: { file: string; line: number }, where: string): T {

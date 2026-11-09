@@ -1,12 +1,13 @@
 import { loadContent } from "../engine/load";
 import type { SourceFile } from "../engine/loadTypes";
 import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
-import { newGame, sceneView, step } from "../engine/step";
-import type { OptionView } from "../engine/types";
+import { newGame, ROLL_ACCEPT, sceneView, step } from "../engine/step";
+import type { OptionView, RollView } from "../engine/types";
 import { inlineHtml, textToHtml } from "./formatText";
 import { createHistoryScreen } from "./historyScreen";
 import { listenForInput, type InputAction } from "./input";
 import { createMapScreen, type MapScreenHandlers } from "./mapScreen";
+import { createRollCard } from "./rollCard";
 import { settings } from "./settings";
 import { canType, typeText } from "./typewriter";
 
@@ -35,7 +36,8 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     }
     let state = newGame(content, startNode, rng);
     let visibleOptions: OptionView[] = [];
-    let skipTyping: (() => void) | undefined;
+    let skipTyping: (() => void) | undefined; // what a click or Enter does while something is still going on: typing, or a roll being revealed
+    let rollInProgress = false;
     let usingKeyboard = false;
     function setUsingKeyboard(value: boolean): void {
         usingKeyboard = value;
@@ -55,6 +57,11 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         page.historyButton.hidden = state.history.length <= 1; // there's nothing to look at until a scene has been left behind
         page.story.innerHTML = textToHtml(view.latestEntry.text);
         page.options.replaceChildren();
+        rollInProgress = view.roll !== undefined;
+        if (view.roll) {
+            showRoll(view.roll, view.options); // the scene itself has been read already, so it isn't typed again
+            return;
+        }
         document.defaultView?.scrollTo({ top: 0, behavior: "instant" }); // a long scene starts at its beginning
         if (animate && canType() && settings.typingCharsPerSecond > 0) {
             skipTyping = typeText(page.story, settings.typingCharsPerSecond, () => {
@@ -65,14 +72,46 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
             showOptions(view.options);
         }
     }
-    function showOptions(options: OptionView[]): void {
+    function showOptions(options: OptionView[], belowRoll = false): void {
         visibleOptions = options;
-        page.options.replaceChildren(...options.map(createOptionButton));
+        const buttons = options.map(createOptionButton);
+        if (belowRoll) page.options.append(...buttons);
+        else page.options.replaceChildren(...buttons);
         if (options.length === 0) {
             page.options.innerHTML = '<p class="end">The end.</p>';
-        } else if (usingKeyboard) {
+        } else if (usingKeyboard && !belowRoll) {
+            // Not under a roll, though: a second press of the key that chose the roll mustn't spend a re-roll.
             optionButtons()[0]?.focus({ preventScroll: true });
         }
+    }
+    // A roll that hasn't been accepted yet: its result is revealed, and the player can re-roll a failure or accept it.
+    // When there's nothing to decide, it carries on by itself after a moment.
+    function showRoll(roll: RollView, options: OptionView[]): void {
+        const card = createRollCard(roll);
+        page.options.replaceChildren(card.element);
+        const accept = options.find(o => o.index === ROLL_ACCEPT)!;
+        let revealed = false;
+        const finish = card.reveal(() => {
+            revealed = true;
+            if (roll.canReroll) {
+                skipTyping = undefined;
+                showOptions(options, true);
+                return;
+            }
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const proceed = (): void => {
+                clearTimeout(timer);
+                skipTyping = undefined;
+                choose(accept);
+            };
+            const wait = (): void => {
+                // Not while the player is looking at the map or the history.
+                timer = setTimeout(() => (mapScreen.isOpen() || historyScreen.isOpen() ? wait() : proceed()), settings.rollHoldMs);
+            };
+            wait();
+            skipTyping = proceed;
+        });
+        if (!revealed) skipTyping = finish;
     }
     function optionButtons(): HTMLButtonElement[] {
         return [...page.options.querySelectorAll("button")];
@@ -120,14 +159,14 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     function openReadOnlyMap(): boolean {
         const mapId = defaultMapId(content, state, rng);
         if (mapScreen.isOpen() || state.screen.kind !== "node" || mapId === undefined) return false;
-        skipTyping?.();
+        if (!rollInProgress) skipTyping?.(); // a roll that's being revealed carries on behind the map
         mapScreen.show(mapView(content, state, mapId, rng), { onClose: () => mapScreen.hide() });
         return true;
     }
     // The earlier scenes, which the player can look back through at any time. It never changes the game.
     function openHistory(): boolean {
         if (mapScreen.isOpen() || historyScreen.isOpen() || state.history.length <= 1) return false;
-        skipTyping?.();
+        if (!rollInProgress) skipTyping?.(); // a roll that's being revealed carries on behind the history
         historyScreen.show(state.history.slice(0, -1)); // everything before the scene that's showing
         return true;
     }
@@ -178,7 +217,12 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     }
     page.mapButton.addEventListener("click", () => openReadOnlyMap());
     page.historyButton.addEventListener("click", () => openHistory());
-    document.addEventListener("click", () => skipTyping?.(), { capture: true });
+    document.addEventListener("click", event => {
+        // Opening the map or the history doesn't hurry a roll along: it waits for the player to come back.
+        const target = event.target as Node | null;
+        if (rollInProgress && target && (page.mapButton.contains(target) || page.historyButton.contains(target))) return;
+        skipTyping?.();
+    }, { capture: true });
     document.addEventListener("mousemove", event => {
         if (mouseMoved(event)) setUsingKeyboard(false);
     });

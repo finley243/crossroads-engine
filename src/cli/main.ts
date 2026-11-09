@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { loadContent } from "../engine/load";
 import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
-import { newGame, sceneView, SCENE_BREAK, step } from "../engine/step";
-import type { Content, GameState, MapLocationView, MapView } from "../engine/types";
+import { newGame, ROLL_ACCEPT, sceneView, SCENE_BREAK, step } from "../engine/step";
+import type { Content, GameState, MapLocationView, MapView, RollView } from "../engine/types";
 import { LITERAL_ASTERISK } from "../engine/scan";
 import type { SourceFile } from "../engine/loadTypes";
 
@@ -35,11 +35,30 @@ function style(text: string): string {
         .replaceAll(LITERAL_ASTERISK, "*");
 }
 
+function rollLine({ chance, success, attempt }: RollView): string {
+    return `${DIM}Roll${attempt > 1 ? " (re-rolled)" : ""}, ${chance}%:${RESET} ${success ? "success" : "failure"}`;
+}
+
+// A roll that has nothing to decide is accepted for the player, once they've seen how it went.
+function settleRolls(content: Content, state: GameState): GameState {
+    for (;;) {
+        const roll = sceneView(content, state, rng).roll;
+        if (!roll || roll.canReroll) return state;
+        console.log(`\n${rollLine(roll)}`);
+        state = step(content, state, ROLL_ACCEPT, rng);
+    }
+}
+
 function show(content: Content, state: GameState): void {
     const view = sceneView(content, state, rng);
     console.log();
-    if (view.latestEntry.option) console.log(`${DIM}› ${view.latestEntry.option}${RESET}\n`);
-    if (view.latestEntry.text) console.log(style(view.latestEntry.text) + "\n");
+    if (view.roll) {
+        // The scene has already been shown; what's new is the roll, which is waiting to be accepted or re-rolled.
+        console.log(`${rollLine(view.roll)}\n`);
+    } else {
+        if (view.latestEntry.option) console.log(`${DIM}› ${view.latestEntry.option}${RESET}\n`);
+        if (view.latestEntry.text) console.log(style(view.latestEntry.text) + "\n");
+    }
     view.options.forEach((option, i) => console.log(`  ${i + 1}. ${style(option.label)}`));
 }
 
@@ -125,7 +144,7 @@ async function main(): Promise<void> {
             continue;
         }
         try {
-            state = step(content, state, choice.index, rng);
+            state = settleRolls(content, step(content, state, choice.index, rng));
             if (state.screen.kind === "node") show(content, state); // a map is shown by the next pass of the loop
         } catch (e) {
             console.error(`\n${BOLD}Error:${RESET} ${e instanceof Error ? e.message : String(e)}`);

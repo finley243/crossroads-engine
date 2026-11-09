@@ -97,7 +97,7 @@ export interface NodePresentation extends PresentationDecl {
 
 export type OptionResult = 
     | { kind: "plain"; text: Prose }
-    | { kind: "roll"; chance: Expr; success: Prose; failure: Prose }; // chance is a whole number of percent
+    | { kind: "roll"; chance: Expr; success: Prose; failure: Prose; noReroll?: boolean }; // chance is a whole number of percent
 
 export interface Option {
     index: number;
@@ -196,6 +196,7 @@ export interface SaveData {
     screen: Screen;
     history: HistoryEntry[];
     pending?: Transition;
+    pendingRoll?: PendingRoll; // a roll that has been made but not yet accepted, so it can still be re-rolled
 }
 
 export interface GameState extends SaveData {
@@ -220,10 +221,29 @@ export interface OptionView {
     label: string;
 }
 
+/** A roll the player has made, whose outcome hasn't been applied yet. Every roll waits like this, so that it can be shown. */
+export interface PendingRoll {
+    option: number; // the node's option that was chosen
+    label: string; // its label, for the history
+    chance: number; // percent, once held between 0 and 100
+    success: boolean;
+    attempt: number; // 1 for the first roll, 2 after a re-roll, and so on
+}
+
+/** What a player needs to see of a pending roll. */
+export interface RollView {
+    chance: number;
+    success: boolean;
+    attempt: number;
+    rerollsLeft: number;
+    canReroll: boolean;
+}
+
 export interface SceneView {
     latestEntry: HistoryEntry;
     options: OptionView[];
     presentation: PresentationState;
+    roll?: RollView; // set while a roll is waiting to be accepted or re-rolled
 }
 
 export interface MapLocationView {

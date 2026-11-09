@@ -1,12 +1,15 @@
 import { RuntimeError } from "./errors";
 import { clampChance } from "./chances";
-import { condition, evaluateInt, evaluateProse, finishText, type EvalContext } from "./evaluate";
+import { condition, evaluate, evaluateInt, evaluateProse, finishText, type EvalContext } from "./evaluate";
 import { travelLocations } from "./mapLocations";
 import { resolvePresentation } from "./presentation";
-import type { AvailableOption, Content, GameState, HistoryEntry, OptionView, Prose, Rng, SceneView, Transition } from "./types";
+import type { AvailableOption, Content, GameState, HistoryEntry, OptionView, Rng, RollView, SceneView, Transition } from "./types";
 
 export const SCENE_BREAK = "\uE002";
 export const CONTINUE_LABEL = "Continue";
+export const ACCEPT_LABEL = "Accept";
+export const ROLL_ACCEPT = 0; // the option indexes while a roll is waiting
+export const ROLL_REROLL = 1;
 const MAX_TRANSITIONS_PER_STEP = 50;
 
 export function newGame(content: Content, startNode: string, rng: Rng, contentVersion = 1): GameState {
@@ -36,35 +39,88 @@ export function step(content: Content, state: GameState, optionIndex: number, rn
         advance(s, content, rng, transition, [], CONTINUE_LABEL);
         return s;
     }
+    if (s.pendingRoll) {
+        stepPendingRoll(s, content, optionIndex, rng);
+        return s;
+    }
     const available = s.options.find(o => o.index === optionIndex);
     const option = content.nodes[s.node]?.options[optionIndex];
     if (!available || !option) throw new RuntimeError(`Option ${optionIndex} isn't available in '${s.node}'`);
     const ctx: EvalContext = { content, state: s, rng };
-    let prose: Prose;
-    if (option.result.kind === "plain") {
-        prose = option.result.text;
-    } else {
+    let prose = option.result.kind === "plain" ? option.result.text : undefined;
+    if (option.result.kind === "roll") {
         const chance = clampChance(evaluateInt(option.result.chance, ctx));
-        prose = rng() * 100 < chance ? option.result.success : option.result.failure;
+        const success = rng() * 100 < chance;
+        // The outcome isn't applied until the roll has been shown and accepted, so that the player sees how it went,
+        // and can re-roll a failure if they're able to.
+        s.pendingRoll = { option: optionIndex, label: available.label, chance, success, attempt: 1 };
+        s.options = [];
+        return s;
     }
-    const result = evaluateProse(prose, ctx);
+    const result = evaluateProse(prose!, ctx);
     advance(s, content, rng, result.transition, [result.text], available.label);
     return s;
 }
 
+// Re-rolls are on when the content declares a whole-number variable called 'rerolls'.
+function rerollsEnabled(content: Content): boolean {
+    return content.vars["rerolls"]?.type.kind === "int";
+}
+
+// Whether the roll that's waiting can be re-rolled: it failed, the option allows it, and there's a re-roll to spend.
+function canReroll(content: Content, s: GameState): boolean {
+    const roll = s.pendingRoll;
+    if (!roll || roll.success || rerollsLeft(content, s) <= 0) return false;
+    const result = content.nodes[s.node]?.options[roll.option]?.result;
+    return result?.kind === "roll" && !result.noReroll;
+}
+
+function rerollsLeft(content: Content, s: GameState): number {
+    if (!rerollsEnabled(content)) return 0;
+    const value = evaluate({ kind: "var", name: "rerolls" }, { content, state: s, rng: Math.random });
+    return typeof value === "number" ? value : 0;
+}
+
+function stepPendingRoll(s: GameState, content: Content, optionIndex: number, rng: Rng): void {
+    const roll = s.pendingRoll!;
+    if (optionIndex === ROLL_REROLL) {
+        if (!canReroll(content, s)) throw new RuntimeError("There's no re-roll to spend here");
+        s.vars["rerolls"] = rerollsLeft(content, s) - 1;
+        s.pendingRoll = { ...roll, success: rng() * 100 < roll.chance, attempt: roll.attempt + 1 };
+        return;
+    }
+    if (optionIndex !== ROLL_ACCEPT) throw new RuntimeError("Only 'Accept' and 'Re-roll' are available while a roll is waiting");
+    const option = content.nodes[s.node]?.options[roll.option];
+    if (option?.result.kind !== "roll") throw new RuntimeError(`The roll that was waiting isn't an option of '${s.node}'`);
+    delete s.pendingRoll;
+    const result = evaluateProse(roll.success ? option.result.success : option.result.failure, { content, state: s, rng });
+    advance(s, content, rng, result.transition, [result.text], roll.label);
+}
+
 export function refreshOptions(content: Content, state: GameState, rng: Rng): GameState {
     const s = structuredClone(state);
-    s.options = s.pending ? [] : computeOptions(s, content, rng);
+    s.options = s.pending || s.pendingRoll ? [] : computeOptions(s, content, rng);
     return s;
 }
 
 export function sceneView(content: Content, state: GameState, rng: Rng): SceneView {
     const latestEntry = state.history[state.history.length - 1];
     if (!latestEntry) throw new RuntimeError("The game has no history yet");
+    const presentation = resolvePresentation(content, state, rng);
+    if (state.pendingRoll) {
+        const { chance, success, attempt } = state.pendingRoll;
+        const left = rerollsLeft(content, state);
+        const rerollable = canReroll(content, state);
+        const options: OptionView[] = rerollable
+            ? [{ index: ROLL_REROLL, label: `Re-roll (${left} left)` }, { index: ROLL_ACCEPT, label: ACCEPT_LABEL }]
+            : [{ index: ROLL_ACCEPT, label: ACCEPT_LABEL }];
+        const roll: RollView = { chance, success, attempt, rerollsLeft: left, canReroll: rerollable };
+        return { latestEntry, options, presentation, roll };
+    }
     const options: OptionView[] = state.pending
         ? [{ index: 0, label: CONTINUE_LABEL }]
         : state.options.map(o => ({ index: o.index, label: o.label }));
-    return { latestEntry, options, presentation: resolvePresentation(content, state, rng) };
+    return { latestEntry, options, presentation };
 }
 
 export function advance(s: GameState, content: Content, rng: Rng, first: Transition | undefined, pieces: string[], label: string | undefined): void {

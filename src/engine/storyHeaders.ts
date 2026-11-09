@@ -82,21 +82,25 @@ export const parseAmbienceField = (stream: TokenStream) => parseFieldEntries(str
 export interface OptionClauses {
     requires?: Expr;
     roll?: Expr; // the chance, in percent
+    noReroll?: boolean; // this roll can't be re-rolled
 }
 
 export function parseOptionClauses(stream: TokenStream): OptionClauses {
     const clauses: OptionClauses = {};
     if (stream.check("eof")) return clauses;
     for (;;) {
-        const word = stream.expect("name", "'if' or 'roll'");
+        const word = stream.expect("name", "'if', 'roll' or 'noreroll'");
         if (word.text === "if") {
             if (clauses.requires) throw new ParseError("This option already has an 'if'", word.position);
             clauses.requires = parseExpression(stream);
         } else if (word.text === "roll") {
             if (clauses.roll) throw new ParseError("This option already has a 'roll'", word.position);
             clauses.roll = parseExpression(stream);
+        } else if (word.text === "noreroll") {
+            if (clauses.noReroll) throw new ParseError("This option already has 'noreroll'", word.position);
+            clauses.noReroll = true;
         } else {
-            throw new ParseError(`Expected 'if' or 'roll' but found '${word.text}'`, word.position);
+            throw new ParseError(`Expected 'if', 'roll' or 'noreroll' but found '${word.text}'`, word.position);
         }
         if (!stream.match("comma")) break;
     }
