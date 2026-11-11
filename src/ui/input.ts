@@ -8,7 +8,8 @@ export type InputAction =
     | { kind: "zoom"; step: 1 | -1 }
     | { kind: "map" } // look at the map
     | { kind: "history" } // look at the earlier scenes
-    | { kind: "hotkey"; key: string }; // a letter that isn't used for anything else, in lower case, which a page can ask for
+    | { kind: "hotkey"; key: string } // a letter that isn't used for anything else, in lower case, which a page can ask for
+    | { kind: "menu" }; // the gamepad's start button
 
 export function listenForInput(handle: (action: InputAction) => boolean): void {
     document.addEventListener("keydown", event => {
@@ -86,6 +87,7 @@ function gamepadAction(button: number): InputAction | undefined {
         case 4: return { kind: "zoom", step: -1 };
         case 5: return { kind: "zoom", step: 1 };
         case 8: return { kind: "history" }; // the view or back button
+        case 9: return { kind: "menu" }; // the start button
         case 12: return { kind: "move", direction: "up" };
         case 13: return { kind: "move", direction: "down" };
         case 14: return { kind: "move", direction: "left" };

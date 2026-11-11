@@ -656,6 +656,101 @@ html.screen-open {
     }
 }
 
+/* The menu: buttons in a panel, and the list of saves. */
+.panel-locked .panel-close {
+    display: none; /* at the start of the game there's nothing to close the menu to */
+}
+
+.menu-message {
+    margin: 0 0 1rem;
+    line-height: 1.6;
+}
+
+.menu-button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 0.6rem;
+    padding: 0.9rem 1.1rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text);
+    font: inherit;
+    font-size: 1rem;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.menu-button:hover,
+.menu-button:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.menu-main {
+    font-size: 1.05rem;
+}
+
+.save-when {
+    color: var(--accent);
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+}
+
+.save-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.menu-small {
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--muted);
+    border-radius: 1px;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+}
+
+.menu-small:hover,
+.menu-small:focus {
+    color: var(--text);
+    border-color: var(--text);
+    outline: none;
+}
+
+.save-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.6rem;
+}
+
+.save-row .menu-button {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+.save-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.1rem;
+}
+
 /* The history: the earlier scenes in an overlay, with a list that scrolls by itself. */
 .history-screen {
     position: fixed;

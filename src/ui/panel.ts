@@ -1,11 +1,21 @@
 import type { InputAction } from "./input";
 
+export interface PanelOptions {
+    /** What the arrow keys do: scroll the content (the default), or move between its buttons, for a menu. */
+    navigation?: "scroll" | "focus";
+    /** What the Close button, Escape, and a click outside the panel do. By default they close it. */
+    onDismiss?: () => void;
+}
+
 export interface Panel {
     /** Where the content goes. */
     body: HTMLElement;
     isOpen(): boolean;
     /** Shows the panel, scrolled to the top. `closeKey` is a letter that closes it again, if it was opened by one. */
     open(title: string, closeKey?: string): void;
+    setTitle(title: string): void;
+    /** Puts the focus on the first button in the content, for a menu. */
+    focusFirst(): void;
     close(): void;
     /** Scrolls the content, for input with no way to do it itself, like a gamepad's stick. */
     scrollBy(pixels: number): void;
@@ -16,7 +26,7 @@ const LINE_STEP = 80; // pixels for an arrow key or a d-pad press
 const PAGE_STEP = 0.85; // the fraction of the panel's height for a page up or down
 
 /** A dialog over the game with a title and a Close button, and content that scrolls by itself, whatever scrolls it. */
-export function createPanel(root: HTMLElement, background: HTMLElement): Panel {
+export function createPanel(root: HTMLElement, background: HTMLElement, options: PanelOptions = {}): Panel {
     root.innerHTML = `
         <div class="panel">
             <div class="panel-head"><h2 class="panel-title" id="${root.id}-title"></h2><button class="panel-close" type="button">Close</button></div>
@@ -52,6 +62,31 @@ export function createPanel(root: HTMLElement, background: HTMLElement): Panel {
         focusBefore = null;
     }
 
+    function setTitle(title: string): void {
+        heading.textContent = title;
+    }
+
+    function buttons(): HTMLElement[] {
+        return [...body.querySelectorAll<HTMLElement>("button:not([disabled])")];
+    }
+
+    function focusFirst(): void {
+        (buttons()[0] ?? body).focus({ preventScroll: true });
+    }
+
+    function moveFocus(step: 1 | -1): void {
+        const items = buttons();
+        if (items.length === 0) return;
+        const current = items.findIndex(item => item === document.activeElement);
+        const next = current === -1 ? (step === 1 ? 0 : items.length - 1) : (current + step + items.length) % items.length;
+        items[next]!.focus({ preventScroll: false });
+    }
+
+    function dismiss(): void {
+        if (options.onDismiss) options.onDismiss();
+        else close();
+    }
+
     function scrollBy(pixels: number): void {
         if (typeof body.scrollBy === "function") body.scrollBy({ top: pixels, behavior: "smooth" });
         else body.scrollTop += pixels;
@@ -60,14 +95,22 @@ export function createPanel(root: HTMLElement, background: HTMLElement): Panel {
     function handleAction(action: InputAction): boolean {
         switch (action.kind) {
             case "cancel":
-                close();
+                dismiss();
                 return true;
+            case "confirm": {
+                const focused = document.activeElement;
+                if (options.navigation !== "focus" || !(focused instanceof HTMLButtonElement) || !body.contains(focused)) return false;
+                focused.click(); // a gamepad's confirm button, which has no key to press the focused button with
+                return true;
+            }
             case "hotkey":
                 if (action.key !== closeKey) return false;
                 close();
                 return true;
             case "move":
-                if (action.direction === "up") scrollBy(-LINE_STEP);
+                if (options.navigation === "focus") {
+                    if (action.direction === "up" || action.direction === "down") moveFocus(action.direction === "down" ? 1 : -1);
+                } else if (action.direction === "up") scrollBy(-LINE_STEP);
                 else if (action.direction === "down") scrollBy(LINE_STEP);
                 return true; // so that the page behind doesn't scroll as well
             case "zoom":
@@ -78,10 +121,10 @@ export function createPanel(root: HTMLElement, background: HTMLElement): Panel {
         }
     }
 
-    root.querySelector<HTMLButtonElement>(".panel-close")!.addEventListener("click", close);
+    root.querySelector<HTMLButtonElement>(".panel-close")!.addEventListener("click", dismiss);
     root.addEventListener("click", event => {
-        if (event.target === root) close(); // a click on the dimmed area outside the panel
+        if (event.target === root) dismiss(); // a click on the dimmed area outside the panel
     });
 
-    return { body, isOpen: () => isOpen, open, close, scrollBy, handleAction };
+    return { body, isOpen: () => isOpen, open, setTitle, focusFirst, close, scrollBy, handleAction };
 }

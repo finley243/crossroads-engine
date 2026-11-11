@@ -3,7 +3,7 @@ import { DIRECTIVE_MARK } from "./parseProse";
 import { parseStoryFile, STORY_WORDS } from "./parseStoryFile";
 import { parseFile } from "./parseFile";
 import { RESERVED_PAGE_KEYS } from "./pages";
-import type { Branch, Content, EncounterTable, Effect, Expr, Node, NodePresentation, Option, OptionResult, MapDef, PageDef, PageSection, PresentationDecl, PresentationField, Prose, ProsePart, VarDecl } from "./types";
+import type { Branch, Content, EncounterTable, Effect, Expr, GameInfo, Node, NodePresentation, Option, OptionResult, MapDef, PageDef, PageSection, PresentationDecl, PresentationField, Prose, ProsePart, VarDecl } from "./types";
 import type { FileDeclarations, LoadError, Located, SourceFile } from "./loadTypes";
 
 export function loadContent(files: SourceFile[]): { content: Content; errors: LoadError[] } {
@@ -15,6 +15,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     const maps: Located<MapDef>[] = [];
     const encounters: Located<EncounterTable>[] = [];
     const pages: Located<PageDef>[] = [];
+    const games: Located<GameInfo>[] = [];
     for (const file of files) {
         const result = parseSourceFile(file);
         errors.push(...result.errors);
@@ -25,6 +26,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         maps.push(...result.declarations.maps);
         encounters.push(...result.declarations.encounters);
         pages.push(...result.declarations.pages);
+        games.push(...result.declarations.game);
     }
     const functionDecls = collect(functions, f => f.name, "function", errors);
     const content: Content = {
@@ -36,6 +38,10 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         encounters: collect(encounters, t => t.id, "encounter table", errors),
         pages: collect(pages, p => p.title, "page", errors),
     };
+    if (games[0]) content.game = games[0].value;
+    for (const extra of games.slice(1)) {
+        errors.push({ file: extra.file, line: extra.line, message: `The game's version is already declared at ${games[0]!.file}:${games[0]!.line}` });
+    }
     const functionLocations = new Map<string, Located<unknown>>();
     for (const located of functions) {
         if (!functionLocations.has(located.value.name)) functionLocations.set(located.value.name, located);

@@ -180,6 +180,12 @@ export interface Content {
     maps: Record<string, MapDef>;
     encounters: Record<string, EncounterTable>;
     pages: Record<string, PageDef>;
+    game?: GameInfo;
+}
+
+/** What the game says about itself, in a `game:` block in a YAML file. */
+export interface GameInfo {
+    version?: string; // three numbers, like "1.2.3". Saves from a game with a different major or minor version are loaded with a warning
 }
 
 
@@ -207,7 +213,6 @@ export type Screen =
     | { kind: "map"; map: string; cancelable: boolean };
 
 export interface SaveData {
-    contentVersion: number;
     vars: Record<string, Value>;
     node: string;
     stack: StackFrame[];

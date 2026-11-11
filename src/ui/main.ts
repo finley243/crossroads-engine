@@ -1,5 +1,6 @@
 import type { SourceFile } from "../engine/loadTypes";
 import { startGame } from "./game";
+import { createBrowserPlatform } from "./platform";
 
 const START_NODE = "start";
 
@@ -22,4 +23,6 @@ startGame({
     historyScreen: element("history-screen"),
     historyButton: element("history-button"),
     pageScreen: element("page-screen"),
-}, sources, START_NODE);
+    menuScreen: element("menu-screen"),
+    menuButton: element("menu-button"),
+}, sources, START_NODE, createBrowserPlatform());

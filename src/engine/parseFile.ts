@@ -1,5 +1,5 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar, YAMLMap, type Node as YamlNode } from "yaml";
-import type { AmbienceState, EncounterEntry, Expr, MapDef, MapLocation, MusicState, NodePresentation, PresentationDecl, PresentationField, Value, VarDecl } from "./types";
+import type { AmbienceState, EncounterEntry, Expr, GameInfo, MapDef, MapLocation, MusicState, NodePresentation, PresentationDecl, PresentationField, Value, VarDecl } from "./types";
 import { KEYWORDS, tokenize, TokenStream } from "./tokenize";
 import { parseExpression } from "./parseExpression";
 import { ParseError } from "./errors";
@@ -12,7 +12,7 @@ export function parseFile(file: SourceFile): { declarations: FileDeclarations; e
 class FileParser {
     private readonly lineCounter = new LineCounter();
     private readonly errors: LoadError[] = [];
-    private readonly declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [], pages: [] };
+    private readonly declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [], pages: [], game: [] };
 
     constructor(private readonly file: SourceFile) {}
 
@@ -28,13 +28,26 @@ class FileParser {
             this.error(root, "A content file must be a map");
             return this.result();
         }
-        const fields = this.fields(root, ["vars", "functions", "presets", "maps", "encounters"], "the top level of the file");
+        const fields = this.fields(root, ["game", "vars", "functions", "presets", "maps", "encounters"], "the top level of the file");
+        if (fields.has("game")) this.parseGame(fields.get("game") ?? null);
         this.forEachEntry(fields.get("vars"), "vars", (name, node) => this.parseVar(name, node, null));
         this.forEachEntry(fields.get("functions"), "functions", (name, node) => this.parseFunction(name, node));
         this.forEachEntry(fields.get("presets"), "presets", (name, node) => this.parsePreset(name, node));
         this.forEachEntry(fields.get("maps"), "maps", (id, node) => this.parseMap(id, node));
         this.forEachEntry(fields.get("encounters"), "encounters", (id, node) => this.parseEncounterTable(id, node));
         return this.result();
+    }
+
+    private parseGame(node: YamlNode | null): void {
+        if (!isMap(node)) return this.error(node, 'game has to be a map, like game:\n  version: "1.0.0"');
+        const fields = this.fields(node, ["version"], "game");
+        const info: GameInfo = {};
+        if (fields.has("version")) {
+            const version = fields.get("version") ?? null;
+            if (isScalar(version) && typeof version.value === "string" && /^\d+\.\d+\.\d+$/.test(version.value)) info.version = version.value;
+            else this.error(version ?? node, "'version' has to be three numbers in quotes, like version: \"1.2.3\"");
+        }
+        this.declarations.game.push(this.locate(info, node));
     }
 
     private result() {

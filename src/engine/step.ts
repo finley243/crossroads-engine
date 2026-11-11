@@ -12,9 +12,8 @@ export const ROLL_ACCEPT = 0; // the option indexes while a roll is waiting
 export const ROLL_REROLL = 1;
 const MAX_TRANSITIONS_PER_STEP = 50;
 
-export function newGame(content: Content, startNode: string, rng: Rng, contentVersion = 1): GameState {
+export function newGame(content: Content, startNode: string, rng: Rng): GameState {
     const state: GameState = {
-        contentVersion,
         vars: {},
         node: startNode,
         stack: [],

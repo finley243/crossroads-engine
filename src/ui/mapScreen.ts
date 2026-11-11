@@ -215,6 +215,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
             case "choose":
             case "history":
             case "hotkey":
+            case "menu":
                 return false;
         }
     }

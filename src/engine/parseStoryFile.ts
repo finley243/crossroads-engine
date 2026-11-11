@@ -63,7 +63,7 @@ interface Context {
 export function parseStoryFile(file: SourceFile): { declarations: FileDeclarations; errors: LoadError[] } {
     const text = file.text.replaceAll("\r\n", "\n");
     const context: Context = { file: file.path, lineAt: lineLookup(text), errors: [] };
-    const declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [], pages: [] };
+    const declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [], pages: [], game: [] };
 
     const segments = attempt(context, 0, () => scanSource(text));
     if (segments === undefined) return { declarations, errors: context.errors };
