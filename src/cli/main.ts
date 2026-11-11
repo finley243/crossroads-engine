@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { loadContent } from "../engine/load";
 import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
+import { availablePages, pageView } from "../engine/pages";
 import { newGame, ROLL_ACCEPT, sceneView, SCENE_BREAK, step } from "../engine/step";
-import type { Content, GameState, MapLocationView, MapView, RollView } from "../engine/types";
+import type { Content, GameState, MapLocationView, MapView, PageView, RollView } from "../engine/types";
 import { LITERAL_ASTERISK } from "../engine/scan";
 import type { SourceFile } from "../engine/loadTypes";
 
@@ -33,6 +34,13 @@ function style(text: string): string {
         .replace(/\*(.+?)\*/g, `${ITALIC}$1${RESET}`)
         .replaceAll(SCENE_BREAK, `${DIM}────────${RESET}`)
         .replaceAll(LITERAL_ASTERISK, "*");
+}
+
+function showPage(view: PageView): void {
+    console.log(`\n${BOLD}${view.title}${RESET}`);
+    if (view.text) console.log(`\n${style(view.text)}`);
+    for (const section of view.sections) console.log(`\n${BOLD}${section.title.toUpperCase()}${RESET}\n${style(section.text)}`);
+    if (!view.text && view.sections.length === 0) console.log(`\n${DIM}Nothing here yet.${RESET}`);
 }
 
 function rollLine({ chance, success, attempt }: RollView): string {
@@ -132,6 +140,16 @@ async function main(): Promise<void> {
             console.log(JSON.stringify(state.vars, null, 2));
             continue;
         }
+        if (input === "p" || input.startsWith("p ")) {
+            const pages = availablePages(content, state, rng);
+            const wanted = input.slice(1).trim();
+            const found = pages[Number(wanted) - 1] ?? pages.find(summary => summary.title.toLowerCase() === wanted.toLowerCase() || summary.key === wanted);
+            if (pages.length === 0) console.log("There are no pages yet.");
+            else if (wanted === "") pages.forEach((summary, i) => console.log(`  p ${i + 1}. ${summary.title}${summary.key ? ` (${summary.key})` : ""}`));
+            else if (found) showPage(pageView(content, state, found.title, rng)!);
+            else console.log(`There's no page '${wanted}' right now (p lists them).`);
+            continue;
+        }
         if (input === "m") {
             const mapId = defaultMapId(content, state, rng);
             if (mapId) showMap(mapView(content, state, mapId, rng), false);
@@ -140,7 +158,7 @@ async function main(): Promise<void> {
         }
         const choice = view.options[Number(input) - 1];
         if (!choice) {
-            console.log(`Enter a number from 1 to ${view.options.length} (or v for variables, m for the map, q to quit).`);
+            console.log(`Enter a number from 1 to ${view.options.length} (or v for variables, m for the map, p for pages, q to quit).`);
             continue;
         }
         try {

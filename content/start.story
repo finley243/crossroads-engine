@@ -3,4 +3,5 @@ Welcome to the start of the game. This is a temporary starting node for developm
 
 {>} Begin Mission
 {then}
+{do mission_1_started = true}
 {do goto mission_1_exterior}

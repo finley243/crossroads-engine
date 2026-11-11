@@ -1,4 +1,4 @@
-import type { EncounterTable, Expr, MapDef, Node, PresentationDecl, VarDecl } from "./types";
+import type { EncounterTable, Expr, MapDef, Node, PageDef, PresentationDecl, VarDecl } from "./types";
 
 export const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -26,4 +26,5 @@ export interface FileDeclarations {
     presets: Located<{ name: string; decl: PresentationDecl }>[];
     maps: Located<MapDef>[];
     encounters: Located<EncounterTable>[];
+    pages: Located<PageDef>[];
 }

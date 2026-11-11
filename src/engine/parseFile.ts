@@ -12,7 +12,7 @@ export function parseFile(file: SourceFile): { declarations: FileDeclarations; e
 class FileParser {
     private readonly lineCounter = new LineCounter();
     private readonly errors: LoadError[] = [];
-    private readonly declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [] };
+    private readonly declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [], pages: [] };
 
     constructor(private readonly file: SourceFile) {}
 

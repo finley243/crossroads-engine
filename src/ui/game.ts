@@ -4,7 +4,9 @@ import { closeMap, defaultMapId, mapView, travel } from "../engine/map";
 import { newGame, ROLL_ACCEPT, sceneView, step } from "../engine/step";
 import type { OptionView, RollView } from "../engine/types";
 import { inlineHtml, textToHtml } from "./formatText";
+import { availablePages, pageView } from "../engine/pages";
 import { createHistoryScreen } from "./historyScreen";
+import { createPageScreen } from "./pageScreen";
 import { listenForInput, type InputAction } from "./input";
 import { createMapScreen, type MapScreenHandlers } from "./mapScreen";
 import { createRollCard } from "./rollCard";
@@ -20,6 +22,7 @@ export interface GamePage {
     background: HTMLElement; // everything behind the map and history screens
     historyScreen: HTMLElement;
     historyButton: HTMLElement;
+    pageScreen: HTMLElement;
 }
 
 const rng = Math.random;
@@ -45,6 +48,9 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     }
     const mapScreen = createMapScreen(page.map, page.background);
     const historyScreen = createHistoryScreen(page.historyScreen, page.background);
+    const pageScreen = createPageScreen(page.pageScreen, page.background);
+    const corner = page.historyButton.parentElement!; // where the buttons for the map, the history, and the pages are
+    const pageButtons = new Map<string, HTMLButtonElement>();
     function showScene(animate = true): void {
         if (state.screen.kind === "map") {
             openTravelMap();
@@ -52,6 +58,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         mapScreen.hide();
         const view = sceneView(content, state, rng);
+        syncPageButtons();
         visibleOptions = [];
         document.documentElement.dataset.theme = view.presentation.theme ?? "";
         page.historyButton.hidden = state.history.length <= 1; // there's nothing to look at until a scene has been left behind
@@ -106,7 +113,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
             };
             const wait = (): void => {
                 // Not while the player is looking at the map or the history.
-                timer = setTimeout(() => (mapScreen.isOpen() || historyScreen.isOpen() ? wait() : proceed()), settings.rollHoldMs);
+                timer = setTimeout(() => (mapScreen.isOpen() || historyScreen.isOpen() || pageScreen.isOpen() ? wait() : proceed()), settings.rollHoldMs);
             };
             wait();
             skipTyping = proceed;
@@ -158,17 +165,53 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     // A look at the map the player is near, at any time. It never changes the game.
     function openReadOnlyMap(): boolean {
         const mapId = defaultMapId(content, state, rng);
-        if (mapScreen.isOpen() || state.screen.kind !== "node" || mapId === undefined) return false;
+        if (mapScreen.isOpen() || historyScreen.isOpen() || pageScreen.isOpen() || state.screen.kind !== "node" || mapId === undefined) return false;
         if (!rollInProgress) skipTyping?.(); // a roll that's being revealed carries on behind the map
         mapScreen.show(mapView(content, state, mapId, rng), { onClose: () => mapScreen.hide() });
         return true;
     }
     // The earlier scenes, which the player can look back through at any time. It never changes the game.
     function openHistory(): boolean {
-        if (mapScreen.isOpen() || historyScreen.isOpen() || state.history.length <= 1) return false;
+        if (mapScreen.isOpen() || historyScreen.isOpen() || pageScreen.isOpen() || state.history.length <= 1) return false;
         if (!rollInProgress) skipTyping?.(); // a roll that's being revealed carries on behind the history
         historyScreen.show(state.history.slice(0, -1)); // everything before the scene that's showing
         return true;
+    }
+    // A page: text such as a journal, worked out from the game as it is now. It never changes the game.
+    function openPage(title: string): boolean {
+        if (mapScreen.isOpen() || historyScreen.isOpen() || pageScreen.isOpen() || state.screen.kind !== "node") return false;
+        const view = pageView(content, state, title, rng);
+        if (!view) return false;
+        if (!rollInProgress) skipTyping?.(); // a roll that's being revealed carries on behind the page
+        pageScreen.show(view, content.pages[title]!.key);
+        return true;
+    }
+    function openPageByKey(key: string): boolean {
+        const found = availablePages(content, state, rng).find(summary => summary.key === key);
+        return found ? openPage(found.title) : false;
+    }
+    // One button for each page that's available now, in the order they were written, before the history and the map.
+    function syncPageButtons(): void {
+        const pages = availablePages(content, state, rng);
+        const wanted = new Set(pages.map(summary => summary.title));
+        for (const [title, button] of pageButtons) {
+            if (wanted.has(title)) continue;
+            button.remove();
+            pageButtons.delete(title);
+        }
+        for (const summary of pages) {
+            let button = pageButtons.get(summary.title);
+            if (!button) {
+                const title = summary.title;
+                button = document.createElement("button");
+                button.type = "button";
+                button.addEventListener("click", () => openPage(title));
+                pageButtons.set(title, button);
+            }
+            button.textContent = summary.label;
+            if (summary.key) button.setAttribute("aria-keyshortcuts", summary.key);
+            corner.insertBefore(button, page.historyButton);
+        }
     }
     function attempt(action: () => void): void {
         page.status.textContent = "";
@@ -182,8 +225,10 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         setUsingKeyboard(true);
         if (mapScreen.isOpen()) return mapScreen.handleAction(action);
         if (historyScreen.isOpen()) return historyScreen.handleAction(action);
+        if (pageScreen.isOpen()) return pageScreen.handleAction(action);
         if (action.kind === "map") return openReadOnlyMap();
         if (action.kind === "history") return openHistory();
+        if (action.kind === "hotkey") return openPageByKey(action.key);
         if (skipTyping) {
             if (action.kind !== "confirm") return false;
             skipTyping();
@@ -220,7 +265,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     document.addEventListener("click", event => {
         // Opening the map or the history doesn't hurry a roll along: it waits for the player to come back.
         const target = event.target as Node | null;
-        if (rollInProgress && target && (page.mapButton.contains(target) || page.historyButton.contains(target))) return;
+        if (rollInProgress && target && corner.contains(target)) return;
         skipTyping?.();
     }, { capture: true });
     document.addEventListener("mousemove", event => {

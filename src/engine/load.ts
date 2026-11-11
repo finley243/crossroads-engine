@@ -2,7 +2,8 @@ import { DIRECTIVE_WORDS, EFFECT_WORDS } from "./parseDirective";
 import { DIRECTIVE_MARK } from "./parseProse";
 import { parseStoryFile, STORY_WORDS } from "./parseStoryFile";
 import { parseFile } from "./parseFile";
-import type { Branch, Content, EncounterTable, Effect, Expr, Node, NodePresentation, Option, OptionResult, MapDef, PresentationDecl, PresentationField, Prose, ProsePart, VarDecl } from "./types";
+import { RESERVED_PAGE_KEYS } from "./pages";
+import type { Branch, Content, EncounterTable, Effect, Expr, Node, NodePresentation, Option, OptionResult, MapDef, PageDef, PageSection, PresentationDecl, PresentationField, Prose, ProsePart, VarDecl } from "./types";
 import type { FileDeclarations, LoadError, Located, SourceFile } from "./loadTypes";
 
 export function loadContent(files: SourceFile[]): { content: Content; errors: LoadError[] } {
@@ -13,6 +14,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
     const presets: Located<{ name: string; decl: PresentationDecl }>[] = [];
     const maps: Located<MapDef>[] = [];
     const encounters: Located<EncounterTable>[] = [];
+    const pages: Located<PageDef>[] = [];
     for (const file of files) {
         const result = parseSourceFile(file);
         errors.push(...result.errors);
@@ -22,6 +24,7 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         presets.push(...result.declarations.presets);
         maps.push(...result.declarations.maps);
         encounters.push(...result.declarations.encounters);
+        pages.push(...result.declarations.pages);
     }
     const functionDecls = collect(functions, f => f.name, "function", errors);
     const content: Content = {
@@ -31,12 +34,14 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         presets: Object.fromEntries(Object.entries(collect(presets, p => p.name, "preset", errors)).map(([name, p]) => [name, p.decl])),
         maps: collect(maps, m => m.id, "map", errors),
         encounters: collect(encounters, t => t.id, "encounter table", errors),
+        pages: collect(pages, p => p.title, "page", errors),
     };
     const functionLocations = new Map<string, Located<unknown>>();
     for (const located of functions) {
         if (!functionLocations.has(located.value.name)) functionLocations.set(located.value.name, located);
     }
     checkVariableNames(vars, content, errors);
+    checkPageKeys(pages, content, errors);
     const resolver = new Resolver(content, errors, functionLocations);
     for (const located of functions) {
         const { name } = located.value;
@@ -46,6 +51,10 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         if (content.nodes[located.value.id] === located.value) {
             content.nodes[located.value.id] = resolver.node(located);
         }
+    }
+    for (const located of pages) {
+        const { title } = located.value;
+        if (content.pages[title] === located.value) content.pages[title] = resolver.page(located);
     }
     for (const located of maps) {
         const { id } = located.value;
@@ -85,6 +94,24 @@ function collect<T>(declarations: Located<T>[], nameOf: (value: T) => string, wh
         }
     }
     return result;
+}
+
+// A page's key opens it, so it can't be one that already does something, or one that another page has.
+function checkPageKeys(pages: Located<PageDef>[], content: Content, errors: LoadError[]): void {
+    const used = new Map<string, Located<PageDef>>();
+    for (const located of pages) {
+        const { title, key } = located.value;
+        if (!key || content.pages[title] !== located.value) continue; // a page that's declared twice has been reported already
+        const reserved = RESERVED_PAGE_KEYS[key];
+        const other = used.get(key);
+        if (reserved) {
+            errors.push({ file: located.file, line: located.line, message: `The key '${key}' can't open page '${title}', since it's already used for ${reserved}` });
+        } else if (other) {
+            errors.push({ file: located.file, line: located.line, message: `The key '${key}' is already used by page '${other.value.title}' (${other.file}:${other.line})` });
+        } else {
+            used.set(key, located);
+        }
+    }
 }
 
 function checkVariableNames(vars: Located<VarDecl>[], content: Content, errors: LoadError[]): void {
@@ -135,6 +162,7 @@ class Resolver {
     private readonly resolving = new Set<string>();
     private location: { file: string; line: number } = { file: "", line: 1 };
     private where = "";
+    private readOnly = false; // while a page is being resolved, which can only show things
 
     constructor(private readonly content: Content, private readonly errors: LoadError[], private readonly functionLocations: Map<string, Located<unknown>>) {
         for (const map of Object.values(content.maps)) {
@@ -177,6 +205,31 @@ class Resolver {
 
     private checkEncounterTable(name: string): void {
         if (!this.content.encounters[name]) this.error(`Unknown encounter table '${name}'`);
+    }
+
+    page(located: Located<PageDef>): PageDef {
+        const page = located.value;
+        this.location = located;
+        const scope: Scope = { nodeId: null };
+        this.readOnly = true;
+        try {
+            const result: PageDef = { ...page };
+            if (page.when) {
+                this.where = `the {when} of page '${page.title}'`;
+                result.when = this.condition(page.when, scope);
+            }
+            this.where = `the text of page '${page.title}'`;
+            result.text = this.prose(page.text, scope);
+            result.sections = page.sections.map(section => {
+                this.where = `section '${section.title}' of page '${page.title}'`;
+                const resolved: PageSection = { title: section.title, text: this.prose(section.text, scope) };
+                if (section.when) resolved.when = this.condition(section.when, scope);
+                return resolved;
+            });
+            return result;
+        } finally {
+            this.readOnly = false;
+        }
     }
 
     node(located: Located<Node>): Node {
@@ -268,6 +321,10 @@ class Resolver {
             case "switch":
                 return { kind: "switch", branches: part.branches.map(branch => this.branch(branch, scope)) };
             case "do":
+                if (this.readOnly) {
+                    this.error("A page can only show things; {do ...} isn't allowed in one, since it would change the game");
+                    return part;
+                }
                 return { kind: "do", effect: this.effect(part.effect, scope) };
         }
     }

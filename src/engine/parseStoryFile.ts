@@ -4,12 +4,26 @@ import { parseProseSegments } from "./parseProse";
 import { readSections, type Marker, type Part, type Section, type SectionTable } from "./readSections";
 import { lineLookup, scanSource } from "./scan";
 import {
-    parseAmbienceField, parseMusicField, parseNameField, parseOptionClauses, parseVarHeader, type OptionClauses,
+    parseAmbienceField, parseMusicField, parseNameField, parseOptionClauses, parseSectionCondition, parseVarHeader, type OptionClauses,
 } from "./storyHeaders";
 import { tokenize, TokenStream } from "./tokenize";
-import type { Node, NodePresentation, Option, OptionResult, PresentationField, Prose } from "./types";
+import { parseExpression } from "./parseExpression";
+import type { Expr, Node, NodePresentation, Option, OptionResult, PageDef, PageSection, PresentationField, Prose } from "./types";
 
 const SECTIONS: SectionTable = {
+    page: {
+        opener: "page",
+        firstPart: "text",
+        headers: { tab: "once", key: "once", when: "once" },
+        dividers: {},
+    },
+    section: {
+        opener: "section",
+        parent: "page",
+        firstPart: "text",
+        headers: { title: "once" },
+        dividers: {},
+    },
     node: {
         opener: "node",
         firstPart: "text",
@@ -49,7 +63,7 @@ interface Context {
 export function parseStoryFile(file: SourceFile): { declarations: FileDeclarations; errors: LoadError[] } {
     const text = file.text.replaceAll("\r\n", "\n");
     const context: Context = { file: file.path, lineAt: lineLookup(text), errors: [] };
-    const declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [] };
+    const declarations: FileDeclarations = { nodes: [], vars: [], functions: [], presets: [], maps: [], encounters: [], pages: [] };
 
     const segments = attempt(context, 0, () => scanSource(text));
     if (segments === undefined) return { declarations, errors: context.errors };
@@ -57,8 +71,73 @@ export function parseStoryFile(file: SourceFile): { declarations: FileDeclaratio
     const { sections, problems } = readSections(segments, SECTIONS);
     for (const problem of problems) report(context, problem.position, problem.message);
 
-    for (const section of sections) buildNode(section, context, declarations);
+    for (const section of sections) {
+        if (section.kind === "page") buildPage(section, context, declarations);
+        else buildNode(section, context, declarations);
+    }
     return { declarations, errors: context.errors };
+}
+
+function buildPage(section: Section, context: Context, declarations: FileDeclarations): void {
+    const title = section.opener.args.trim(); // the page's name is what the player sees
+    if (title === "") {
+        report(context, section.opener.position, "{page} needs a name, like {page Journal}");
+        return;
+    }
+    const page: PageDef = {
+        title,
+        text: prose(section.parts[0]!, context) ?? [],
+        sections: section.children.flatMap(child => buildPageSection(child, context) ?? []),
+    };
+    for (const header of section.headers) {
+        switch (header.word) {
+            case "tab": {
+                const text = header.args.trim();
+                if (text === "") report(context, header.position, "{tab} needs some text, like {tab Log}");
+                else page.tab = text;
+                break;
+            }
+            case "key": {
+                const key = header.args.trim().toLowerCase();
+                if (!/^[a-z]$/.test(key)) report(context, header.position, "{key} takes a single letter, like {key j}");
+                else page.key = key;
+                break;
+            }
+            case "when": {
+                const when = parseArgs(context, header, stream => parseExpression(stream));
+                if (when) page.when = when;
+                break;
+            }
+        }
+    }
+    declarations.pages.push({ value: page, file: context.file, line: context.lineAt(section.opener.position) });
+}
+
+// {section} or {section if condition}, with the section's {title} on the line below.
+function buildPageSection(section: Section, context: Context): PageSection | undefined {
+    const args = section.opener.args.trim();
+    let when: Expr | undefined;
+    if (args !== "") {
+        if (!/^if(\s|$)/.test(args)) {
+            report(context, section.opener.position, "{section} can only be followed by a condition, like {section if days_left > 0}; the section's name goes on a {title} line below it");
+            return undefined;
+        }
+        when = parseArgs(context, section.opener, parseSectionCondition);
+        if (!when) return undefined;
+    }
+    const header = section.headers.find(h => h.word === "title");
+    if (!header) {
+        report(context, section.opener.position, "A section needs a {title}, on the line below {section}, like {title Tomas's arm}");
+        return undefined;
+    }
+    const title = header.args.trim();
+    if (title === "") {
+        report(context, header.position, "{title} needs some text, like {title Tomas's arm}");
+        return undefined;
+    }
+    const result: PageSection = { title, text: prose(section.parts[0]!, context) ?? [] };
+    if (when) result.when = when;
+    return result;
 }
 
 function buildNode(section: Section, context: Context, declarations: FileDeclarations): void {

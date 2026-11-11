@@ -85,6 +85,12 @@ export interface OptionClauses {
     noReroll?: boolean; // this roll can't be re-rolled
 }
 
+// What follows {section}: nothing, or "if" and a condition.
+export function parseSectionCondition(stream: TokenStream): Expr {
+    stream.expect("name", "'if'", "if");
+    return parseExpression(stream);
+}
+
 export function parseOptionClauses(stream: TokenStream): OptionClauses {
     const clauses: OptionClauses = {};
     if (stream.check("eof")) return clauses;

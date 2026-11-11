@@ -21,4 +21,5 @@ startGame({
     background: element("page"),
     historyScreen: element("history-screen"),
     historyButton: element("history-button"),
+    pageScreen: element("page-screen"),
 }, sources, START_NODE);

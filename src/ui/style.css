@@ -513,7 +513,10 @@ html.screen-open {
     right: 0.75rem;
     z-index: 5;
     display: flex;
+    flex-wrap: wrap; /* with many pages, a second row, and not buttons off the edge of the screen */
+    justify-content: flex-end;
     gap: 0.5rem;
+    max-width: calc(100vw - 1.5rem);
 }
 
 #corner-buttons button {
@@ -536,6 +539,121 @@ html.screen-open {
     color: var(--text);
     border-color: var(--text);
     outline: none;
+}
+
+/* A page, like a journal or a stat sheet: an overlay with text that scrolls by itself. */
+.panel-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem 1.5rem;
+    background: color-mix(in srgb, var(--background) 82%, transparent);
+    outline: none;
+}
+
+.panel-screen[hidden] {
+    display: none;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 42rem;
+    height: 100%;
+    max-height: 46rem;
+    background: var(--background);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    animation: panel-in 0.18s ease-out;
+}
+
+@keyframes panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.75rem);
+    }
+}
+
+.panel-head {
+    flex: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: normal;
+}
+
+.panel-close {
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--muted);
+    border-radius: 1px;
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+}
+
+.panel-close:hover,
+.panel-close:focus {
+    color: var(--text);
+    border-color: var(--text);
+    outline: none;
+}
+
+.panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain; /* a scroll that reaches the end doesn't carry on into the page behind */
+    padding: 1.1rem 1.25rem 1.5rem;
+    line-height: 1.6;
+    outline: none;
+}
+
+.panel-body p {
+    margin: 0 0 0.75em;
+}
+
+.panel-body p:last-child {
+    margin-bottom: 0;
+}
+
+.panel-empty {
+    color: var(--muted);
+    font-style: italic;
+}
+
+.page-section {
+    margin-top: 1.6rem;
+}
+
+.page-section:first-child {
+    margin-top: 0;
+}
+
+.page-section h3 {
+    margin: 0 0 0.45rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel {
+        animation: none;
+    }
 }
 
 /* The history: the earlier scenes in an overlay, with a list that scrolls by itself. */

@@ -131,6 +131,23 @@ export interface MapLocation {
     encounters?: string | null; // the encounter table rolled when traveling here, instead of the map's; null for none
 }
 
+// Pages: text the player can look at any time, like a journal or a stat sheet. It's only ever read.
+
+export interface PageSection {
+    title: string;
+    when?: Expr; // the section only appears while this is true
+    text: Prose;
+}
+
+export interface PageDef {
+    title: string; // what the player sees, and what the page is called: two pages can't have the same one
+    tab?: string; // a shorter name for the button, when the title is long
+    key?: string; // a letter that opens it
+    when?: Expr; // the page only exists for the player while this is true
+    text: Prose; // before the first section
+    sections: PageSection[];
+}
+
 export interface MapDef {
     id: string;
     image: string;
@@ -162,6 +179,7 @@ export interface Content {
     presets: Record<string, PresentationDecl>;
     maps: Record<string, MapDef>;
     encounters: Record<string, EncounterTable>;
+    pages: Record<string, PageDef>;
 }
 
 
@@ -214,6 +232,20 @@ export interface PresentationState {
     location: string | null;
     music: MusicState | null;
     ambience: AmbienceState | null;
+}
+
+/** A page the player can open right now. */
+export interface PageSummary {
+    title: string;
+    label: string; // what its button says
+    key?: string;
+}
+
+/** A page as the player sees it at the moment: its text worked out from the game's current state. */
+export interface PageView {
+    title: string;
+    text: string;
+    sections: { title: string; text: string }[];
 }
 
 export interface OptionView {

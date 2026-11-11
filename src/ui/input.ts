@@ -7,7 +7,8 @@ export type InputAction =
     | { kind: "cancel" } // back out of a screen
     | { kind: "zoom"; step: 1 | -1 }
     | { kind: "map" } // look at the map
-    | { kind: "history" }; // look at the earlier scenes
+    | { kind: "history" } // look at the earlier scenes
+    | { kind: "hotkey"; key: string }; // a letter that isn't used for anything else, in lower case, which a page can ask for
 
 export function listenForInput(handle: (action: InputAction) => boolean): void {
     document.addEventListener("keydown", event => {
@@ -72,6 +73,7 @@ function keyboardAction(event: KeyboardEvent): InputAction | undefined {
             return { kind: "history" };
     }
     if (/^[1-9]$/.test(event.key)) return { kind: "choose", position: Number(event.key) - 1 };
+    if (/^[a-zA-Z]$/.test(event.key)) return { kind: "hotkey", key: event.key.toLowerCase() };
     return undefined;
 }
 
