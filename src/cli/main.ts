@@ -71,11 +71,12 @@ function show(content: Content, state: GameState): void {
 }
 
 function showMap(view: MapView, canTravel: boolean, cancelable = true): MapLocationView[] {
-    console.log(`\n${BOLD}Map: ${view.id}${RESET}`);
+    console.log(`\n${BOLD}Map: ${view.name}${RESET}${view.name === view.id ? "" : ` ${DIM}(${view.id})${RESET}`}`);
+    if (view.parent) console.log(`${DIM}  Up to ${view.parent.name}: m ${view.parent.map}${RESET}`);
     const destinations = canTravel ? view.locations.filter(location => location.travelable) : [];
     for (const location of view.locations) {
-        const status = location.current ? " (you are here)" : location.locked ? " (locked)" : "";
-        const here = status ? ` ${DIM}${status.trim()}${RESET}` : "";
+        const notes = [location.current ? "you are here" : location.locked ? "locked" : "", location.opens ? `opens ${location.opens.name}: m ${location.opens.map}` : ""].filter(Boolean);
+        const here = notes.length > 0 ? ` ${DIM}(${notes.join(", ")})${RESET}` : "";
         const detail = location.locked && location.lockedNote ? location.lockedNote : location.description;
         const description = detail ? ` ${DIM}- ${detail}${RESET}` : "";
         const number = destinations.indexOf(location) + 1;
@@ -150,10 +151,12 @@ async function main(): Promise<void> {
             else console.log(`There's no page '${wanted}' right now (p lists them).`);
             continue;
         }
-        if (input === "m") {
-            const mapId = defaultMapId(content, state, rng);
+        if (input === "m" || input.startsWith("m ")) {
+            // "m" is the map the player is at; "m name" is any map, which is for looking at what the player can reach
+            const wanted = input.slice(1).trim().toLowerCase();
+            const mapId = wanted === "" ? defaultMapId(content, state, rng) : Object.values(content.maps).find(map => map.id.toLowerCase() === wanted || map.name.toLowerCase() === wanted)?.id;
             if (mapId) showMap(mapView(content, state, mapId, rng), false);
-            else console.log("There are no maps.");
+            else console.log(wanted === "" ? "There are no maps." : `There's no map '${wanted}' (the maps are ${Object.keys(content.maps).join(", ")}).`);
             continue;
         }
         const choice = view.options[Number(input) - 1];

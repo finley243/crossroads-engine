@@ -167,30 +167,61 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         commit();
     }
+    // The map screen is a stack of views: the map that was opened, then the maps looked at from it, each on top of the last.
+    // Only the first can be used to travel. The rest are for looking, and each one steps back to the one before.
+    let mapTrail: string[] = [];
+    function showMapTrail(cameFrom?: string): void {
+        const mapId = mapTrail[mapTrail.length - 1]!;
+        const first = mapTrail.length === 1;
+        const view = mapView(content, state, mapId, rng);
+        const handlers: MapScreenHandlers = { onOpenMap: target => lookAt(target, mapId, false) };
+        if (view.parent) {
+            const parent = view.parent.map;
+            handlers.onParent = () => lookAt(parent, mapId, true);
+        }
+        if (!first) {
+            handlers.onClose = () => {
+                const left = mapTrail.pop()!;
+                showMapTrail(left);
+            };
+        } else if (state.screen.kind === "map") {
+            handlers.onTravel = locationId => attempt(() => {
+                state = travel(content, state, locationId, rng);
+                commit();
+            });
+            // A map the story doesn't allow canceling has no way out except traveling.
+            if (state.screen.cancelable) {
+                handlers.onClose = () => attempt(() => {
+                    state = closeMap(state);
+                    commit(false); // the player has already read this scene
+                });
+            }
+        } else {
+            handlers.onClose = () => mapScreen.hide();
+        }
+        // Coming back to a map, its marker for the one just left is selected, so that the player can see where they were
+        mapScreen.show(view, handlers, cameFrom === undefined ? undefined : view.locations.find(location => location.opens?.map === cameFrom)?.id);
+    }
+    // Looks at another map. One that's already in the trail steps back to it, and doesn't stack a second copy.
+    function lookAt(target: string, from: string, up: boolean): void {
+        const at = mapTrail.indexOf(target);
+        if (at !== -1) mapTrail.length = at + 1;
+        else mapTrail.push(target);
+        showMapTrail(at !== -1 || up ? from : undefined);
+    }
     // The map the story opened, which the player can travel from.
     function openTravelMap(): void {
         if (state.screen.kind !== "map") return;
-        const handlers: MapScreenHandlers = {
-            onTravel: locationId => attempt(() => {
-                state = travel(content, state, locationId, rng);
-                commit();
-            }),
-        };
-        // A map the story doesn't allow canceling has no way out except traveling.
-        if (state.screen.cancelable) {
-            handlers.onClose = () => attempt(() => {
-                state = closeMap(state);
-                commit(false); // the player has already read this scene
-            });
-        }
-        mapScreen.show(mapView(content, state, state.screen.map, rng), handlers);
+        mapTrail = [state.screen.map];
+        showMapTrail();
     }
     // A look at the map the player is near, at any time. It never changes the game.
     function openReadOnlyMap(): boolean {
         const mapId = defaultMapId(content, state, rng);
         if (overlayOpen() || state.screen.kind !== "node" || mapId === undefined) return false;
         if (!rollInProgress) skipTyping?.(); // a roll that's being revealed carries on behind the map
-        mapScreen.show(mapView(content, state, mapId, rng), { onClose: () => mapScreen.hide() });
+        mapTrail = [mapId];
+        showMapTrail();
         return true;
     }
     // The earlier scenes, which the player can look back through at any time. It never changes the game.
@@ -377,6 +408,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         buttons[next]!.focus();
         return true;
     }
+    page.mapButton.hidden = Object.keys(content.maps).length === 0; // there's nothing to show without a map
     page.mapButton.addEventListener("click", () => openReadOnlyMap());
     page.historyButton.addEventListener("click", () => openHistory());
     page.menuButton.addEventListener("click", () => openMenu());

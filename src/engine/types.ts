@@ -124,7 +124,8 @@ export interface MapLocation {
     description: string;
     x: number; // pixels in the map's image
     y: number;
-    node: string; // the node that traveling here enters
+    node?: string; // the node that traveling here enters. A location with only a map is a marker for looking at that map, and has none
+    map?: string; // the map that this location's marker can open, for looking at. It never moves the player: travel is by the map the story opened
     requires?: Expr; // the location only appears on the map while this is true
     unlocked?: Expr; // it can only be traveled to while this is true, though it's still shown on the map
     lockedNote?: string; // says why it's locked
@@ -150,6 +151,9 @@ export interface PageDef {
 
 export interface MapDef {
     id: string;
+    name: string; // what the player sees: the id, tidied up, until a name is given
+    parent?: string; // the map that this one's screen has a button for, to look at it
+    requires?: Expr; // the map can only be looked at through a button while this is true
     image: string;
     width: number; // the image's size in pixels, so positions can be placed on it at any display size
     height: number;
@@ -292,11 +296,15 @@ export interface MapLocationView {
     current: boolean; // the player's current location, for "you are here"
     locked: boolean; // shown on the map, but not available yet
     lockedNote: string;
-    travelable: boolean; // not where the player already is, and not locked
+    travelable: boolean; // has a node, is not where the player already is, and not locked
+    destination: boolean; // has a node at all, so it's a place that can be traveled to, and not only a marker that opens a map
+    opens?: { map: string; name: string }; // the map that this location's marker can open, if it's available
 }
 
 export interface MapView {
     id: string;
+    name: string;
+    parent?: { map: string; name: string }; // the map that this one has a button for, if it's available
     image: string;
     width: number;
     height: number;

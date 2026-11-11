@@ -187,7 +187,7 @@ class FileParser {
     private parseMap(id: string, node: YamlNode | null): void {
         const where = `map '${id}'`;
         if (!isMap(node)) return this.error(node, `${where} must be a map`);
-        const fields = this.fields(node, ["image", "width", "height", "locations", "encounters"], where);
+        const fields = this.fields(node, ["name", "parent", "requires", "image", "width", "height", "locations", "encounters"], where);
 
         const imageNode = this.required(fields, "image", node, where);
         const widthNode = this.required(fields, "width", node, where);
@@ -208,9 +208,15 @@ class FileParser {
         });
 
         const encounters = fields.has("encounters") ? this.encounterRef(fields.get("encounters") ?? null, `the encounters of ${where}`) : undefined;
+        const name = fields.has("name") ? this.string(fields.get("name") ?? null, `the name of ${where}`) : id.charAt(0).toUpperCase() + id.slice(1).replaceAll("_", " ");
+        const parent = fields.has("parent") ? this.string(fields.get("parent") ?? null, `the parent of ${where}`) : undefined;
+        const requiresNode = fields.get("requires");
+        const requires = requiresNode === undefined ? undefined : this.expression(requiresNode, `the requirement of ${where}`);
 
-        if (image === undefined || width === undefined || height === undefined) return;
-        const map: MapDef = { id, image, width, height, locations };
+        if (image === undefined || width === undefined || height === undefined || name === undefined) return;
+        const map: MapDef = { id, name, image, width, height, locations };
+        if (parent !== undefined) map.parent = parent;
+        if (requires !== undefined) map.requires = requires;
         if (encounters !== undefined) map.encounters = encounters;
         this.declarations.maps.push(this.locate(map, node));
     }
@@ -221,20 +227,26 @@ class FileParser {
             this.error(node, `${where} must be a map`);
             return undefined;
         }
-        const fields = this.fields(node, ["name", "description", "x", "y", "node", "requires", "unlocked", "locked_note", "encounters"], where);
+        const fields = this.fields(node, ["name", "description", "x", "y", "node", "map", "requires", "unlocked", "locked_note", "encounters"], where);
 
         const nameNode = this.required(fields, "name", node, where);
         const xNode = this.required(fields, "x", node, where);
         const yNode = this.required(fields, "y", node, where);
-        const targetNode = this.required(fields, "node", node, where);
+        if (!fields.has("node") && !fields.has("map")) this.error(node, `${where} needs a 'node' to travel to, or a 'map' for its marker to open`);
         const name = nameNode === undefined ? undefined : this.string(nameNode, `the name of ${where}`);
         const x = xNode === undefined ? undefined : this.integer(xNode, `x of ${where}`);
         const y = yNode === undefined ? undefined : this.integer(yNode, `y of ${where}`);
-        const target = targetNode === undefined ? undefined : this.string(targetNode, `the node of ${where}`);
+        const target = fields.has("node") ? this.string(fields.get("node") ?? null, `the node of ${where}`) : undefined;
+        const opens = fields.has("map") ? this.string(fields.get("map") ?? null, `the map of ${where}`) : undefined;
         const description = fields.has("description") ? this.string(fields.get("description") ?? null, `the description of ${where}`) : "";
-        if (name === undefined || x === undefined || y === undefined || target === undefined || description === undefined) return undefined;
+        if (name === undefined || x === undefined || y === undefined || description === undefined) return undefined;
+        if (fields.has("node") && target === undefined) return undefined;
+        if (fields.has("map") && opens === undefined) return undefined;
+        if (target === undefined && opens === undefined) return undefined; // already reported
 
-        const location: MapLocation = { id, name, description, x, y, node: target };
+        const location: MapLocation = { id, name, description, x, y };
+        if (target !== undefined) location.node = target;
+        if (opens !== undefined) location.map = opens;
         const requiresNode = fields.get("requires");
         if (requiresNode !== undefined) {
             const requires = this.expression(requiresNode, `the requirement of ${where}`);

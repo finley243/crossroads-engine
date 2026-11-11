@@ -7,11 +7,14 @@ import { createViewport, type Viewport } from "./viewport";
 export interface MapScreenHandlers {
     onTravel?: (locationId: string) => void; // only given when the player can travel from this map
     onClose?: () => void; // not given when the map has to be used to travel
+    onParent?: () => void; // given when the map has a parent to look at
+    onOpenMap?: (mapId: string) => void; // given when the map of a marker can be looked at
 }
 
 export interface MapScreen {
     isOpen(): boolean;
-    show(view: MapView, handlers: MapScreenHandlers): void;
+    /** `selectedId` is a marker to start with selected, when coming back to a map from one that it leads to. */
+    show(view: MapView, handlers: MapScreenHandlers, selectedId?: string): void;
     hide(): void;
     handleAction(action: InputAction): boolean;
 }
@@ -33,9 +36,9 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
     const markers = new Map<string, HTMLButtonElement>();
 
     let area: HTMLElement, frame: HTMLElement, canvas: HTMLElement;
-    let infoName: HTMLElement, infoDescription: HTMLElement, infoNote: HTMLElement, travelButton: HTMLButtonElement, closeButton: HTMLButtonElement;
+    let infoName: HTMLElement, infoDescription: HTMLElement, infoNote: HTMLElement, travelButton: HTMLButtonElement, openButton: HTMLButtonElement, parentButton: HTMLButtonElement, closeButton: HTMLButtonElement;
 
-    function show(newView: MapView, newHandlers: MapScreenHandlers): void {
+    function show(newView: MapView, newHandlers: MapScreenHandlers, startWith?: string): void {
         hide();
         view = newView;
         handlers = newHandlers;
@@ -54,6 +57,10 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         resizeObserver.observe(area);
         showInfo();
         root.focus();
+        if (startWith !== undefined && markers.has(startWith)) {
+            select(startWith);
+            revealMarker(startWith);
+        }
     }
 
     function hide(): void {
@@ -76,7 +83,7 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
             </div>
             <div class="map-panel">
                 <div class="map-info"><h2></h2><p></p><p class="map-info-note"></p></div>
-                <div class="map-actions"><button class="map-travel" type="button">Travel</button><button class="map-close" type="button"></button></div>
+                <div class="map-actions"><button class="map-travel" type="button">Travel</button><button class="map-open" type="button">View map</button><button class="map-parent" type="button"></button><button class="map-close" type="button"></button></div>
             </div>`;
         area = root.querySelector(".map-area")!;
         frame = root.querySelector(".map-frame")!;
@@ -85,7 +92,10 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         infoDescription = root.querySelector(".map-info p")!;
         infoNote = root.querySelector(".map-info-note")!;
         travelButton = root.querySelector(".map-travel")!;
+        openButton = root.querySelector(".map-open")!;
+        parentButton = root.querySelector(".map-parent")!;
         closeButton = root.querySelector(".map-close")!;
+        root.setAttribute("aria-label", view.name);
 
         const image = root.querySelector<HTMLImageElement>(".map-image")!;
         image.addEventListener("error", () => canvas.classList.add("no-image")); // a grid stands in for a missing image
@@ -112,8 +122,12 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
         frame.addEventListener("pointerdown", event => {
             pressedAt = { x: event.clientX, y: event.clientY };
         });
-        travelButton.hidden = handlers.onTravel === undefined;
         travelButton.addEventListener("click", travelToSelected);
+        openButton.addEventListener("click", () => void openSelectedMap());
+        parentButton.textContent = view.parent?.name ?? "";
+        parentButton.setAttribute("aria-label", view.parent ? `Look at the map ${view.parent.name}` : "");
+        parentButton.hidden = !(view.parent && handlers.onParent);
+        parentButton.addEventListener("click", () => handlers.onParent?.());
         closeButton.textContent = handlers.onTravel ? "Cancel" : "Close";
         closeButton.hidden = handlers.onClose === undefined;
         closeButton.addEventListener("click", () => handlers.onClose?.());
@@ -150,12 +164,24 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
 
     function showInfo(): void {
         const location = selectedLocation();
-        infoName.textContent = location ? location.name : "";
+        infoName.textContent = location ? location.name : view.name;
         infoDescription.textContent = location
             ? location.description
             : handlers.onTravel ? "Choose where to go." : "Select a place to read about it.";
         infoNote.textContent = !location ? "" : location.current ? "You are here." : location.locked ? location.lockedNote || "You can't go there yet." : "";
+        // Travel is for places that can be traveled to, and not for a marker that only opens a map
+        travelButton.hidden = handlers.onTravel === undefined || (location !== undefined && !location.destination);
         travelButton.disabled = !location?.travelable;
+        openButton.hidden = !(location?.opens && handlers.onOpenMap);
+        openButton.setAttribute("aria-label", location?.opens ? `Look at the map ${location.opens.name}` : "View map");
+    }
+
+    // Looks at the map that the selected marker opens, which is only ever for looking.
+    function openSelectedMap(): boolean {
+        const opens = selectedLocation()?.opens;
+        if (!opens || !handlers.onOpenMap) return false;
+        handlers.onOpenMap(opens.map);
+        return true;
     }
 
     function travelToSelected(): void {
@@ -206,15 +232,21 @@ export function createMapScreen(root: HTMLElement, background: HTMLElement): Map
                 handlers.onClose();
                 return true;
             case "map":
+                if (handlers.onParent && view.parent) {
+                    handlers.onParent(); // up to the map this one belongs to
+                    return true;
+                }
                 if (handlers.onTravel || !handlers.onClose) return false; // the map the story opened is closed with cancel
                 handlers.onClose();
                 return true;
+            case "history": // the gamepad's X
+                return openSelectedMap();
+            case "hotkey":
+                return action.key === "v" && openSelectedMap();
             case "zoom":
                 viewport?.zoomBy(Math.exp(0.4 * action.step));
                 return true;
             case "choose":
-            case "history":
-            case "hotkey":
             case "menu":
                 return false;
         }

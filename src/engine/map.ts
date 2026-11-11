@@ -1,33 +1,43 @@
 import { RuntimeError } from "./errors";
 import { encounterTableFor, rollEncounter } from "./encounters";
-import { availableLocations, currentLocationId, isUnlocked } from "./mapLocations";
+import { availableLocations, currentLocationId, isMapAvailable, isUnlocked, markerHoldsLocation } from "./mapLocations";
 import { advance } from "./step";
-import type { Content, GameState, MapDef, MapView, Rng, Transition } from "./types";
+import type { Content, GameState, MapDef, MapLocationView, MapView, Rng, Transition } from "./types";
 
 export function mapView(content: Content, state: GameState, mapId: string, rng: Rng): MapView {
     const map = findMap(content, mapId);
     const currentLocation = currentLocationId(content, state, rng);
-    return {
+    const view: MapView = {
         id: map.id,
+        name: map.name,
         image: map.image,
         width: map.width,
         height: map.height,
         locations: availableLocations(content, state, map, rng).map(location => {
-            const current = location.id === currentLocation;
+            const here = location.id === currentLocation; // the location itself, which is the one that can't be traveled to
             const locked = !isUnlocked(content, state, location, rng);
-            return {
+            const result: MapLocationView = {
                 id: location.id,
                 name: location.name,
                 description: location.description,
                 x: location.x,
                 y: location.y,
-                current,
+                current: here || markerHoldsLocation(content, map.id, location, currentLocation),
                 locked,
                 lockedNote: location.lockedNote ?? "",
-                travelable: !current && !locked,
+                travelable: location.node !== undefined && !here && !locked,
+                destination: location.node !== undefined,
             };
+            if (location.map !== undefined && isMapAvailable(content, state, location.map, rng)) {
+                result.opens = { map: location.map, name: content.maps[location.map]!.name };
+            }
+            return result;
         }),
     };
+    if (map.parent !== undefined && isMapAvailable(content, state, map.parent, rng)) {
+        view.parent = { map: map.parent, name: content.maps[map.parent]!.name };
+    }
+    return view;
 }
 
 export function defaultMapId(content: Content, state: GameState, rng: Rng): string | undefined {
@@ -42,6 +52,7 @@ export function travel(content: Content, state: GameState, locationId: string, r
     const map = findMap(content, state.screen.map);
     const destination = availableLocations(content, state, map, rng).find(location => location.id === locationId);
     if (!destination) throw new RuntimeError(`'${locationId}' isn't available on the map '${map.id}' right now`);
+    if (destination.node === undefined) throw new RuntimeError(`${destination.name} only opens a map, so it can't be traveled to`);
     if (destination.id === currentLocationId(content, state, rng)) {
         throw new RuntimeError(`You're already at ${destination.name}`);
     }

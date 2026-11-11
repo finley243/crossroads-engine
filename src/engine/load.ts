@@ -62,10 +62,9 @@ export function loadContent(files: SourceFile[]): { content: Content; errors: Lo
         const { title } = located.value;
         if (content.pages[title] === located.value) content.pages[title] = resolver.page(located);
     }
-    for (const located of maps) {
-        const { id } = located.value;
-        if (content.maps[id] === located.value) content.maps[id] = resolver.map(located);
-    }
+    const keptMaps = maps.filter(located => content.maps[located.value.id] === located.value); // a map that's declared twice has been reported already
+    for (const located of keptMaps) content.maps[located.value.id] = resolver.map(located);
+    checkMapLinks(keptMaps, content, errors);
     for (const located of encounters) {
         const { id } = located.value;
         if (content.encounters[id] === located.value) content.encounters[id] = resolver.encounterTable(located);
@@ -100,6 +99,41 @@ function collect<T>(declarations: Located<T>[], nameOf: (value: T) => string, wh
         }
     }
     return result;
+}
+
+// The maps that maps point at have to exist, a map can't be its own parent however indirectly, and a location id names one place on one map.
+function checkMapLinks(maps: Located<MapDef>[], content: Content, errors: LoadError[]): void {
+    const idsSeen = new Map<string, string>(); // location id -> the map it's on
+    const reported = new Set<string>();
+    for (const located of maps) {
+        const map = located.value;
+        const report = (message: string): void => void errors.push({ file: located.file, line: located.line, message });
+        if (map.parent !== undefined) {
+            if (!content.maps[map.parent]) {
+                report(`Unknown map '${map.parent}' (the parent of map '${map.id}')`);
+            } else if (!reported.has(map.id)) {
+                const chain = [map.id];
+                for (let at = map.parent; ; at = content.maps[at]?.parent ?? "") {
+                    if (at === "" || !content.maps[at]) break;
+                    if (at === map.id) {
+                        report(`The parents of map '${map.id}' lead back to it (${[...chain, map.id].join(" → ")})`);
+                        chain.forEach(id => reported.add(id));
+                        break;
+                    }
+                    if (chain.includes(at)) break; // a loop that doesn't include this map, reported where it starts
+                    chain.push(at);
+                }
+            }
+        }
+        for (const location of map.locations) {
+            if (location.map !== undefined && !content.maps[location.map]) {
+                report(`Unknown map '${location.map}' (the map of location '${location.id}' of map '${map.id}')`);
+            }
+            const other = idsSeen.get(location.id);
+            if (other !== undefined) report(`The location '${location.id}' of map '${map.id}' is already used by map '${other}'; a location id names one place`);
+            else idsSeen.set(location.id, map.id);
+        }
+    }
 }
 
 // A page's key opens it, so it can't be one that already does something, or one that another page has.
@@ -180,9 +214,10 @@ class Resolver {
         const map = located.value;
         this.location = located;
         const scope: Scope = { nodeId: null };
+        const requires = map.requires ? (this.where = `the requirement of map '${map.id}'`, this.condition(map.requires, scope)) : undefined;
         const locations = map.locations.map(location => {
             this.where = `location '${location.id}' of map '${map.id}'`;
-            this.checkNode(location.node);
+            if (location.node !== undefined) this.checkNode(location.node);
             const resolved = { ...location };
             if (location.requires) resolved.requires = this.condition(location.requires, scope);
             if (location.unlocked) resolved.unlocked = this.condition(location.unlocked, scope);
@@ -193,7 +228,9 @@ class Resolver {
             this.where = `the encounters of map '${map.id}'`;
             this.checkEncounterTable(map.encounters);
         }
-        return { ...map, locations };
+        const resolved: MapDef = { ...map, locations };
+        if (requires) resolved.requires = requires;
+        return resolved;
     }
 
     encounterTable(located: Located<EncounterTable>): EncounterTable {
