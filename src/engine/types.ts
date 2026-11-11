@@ -37,13 +37,15 @@ export type Effect =
     | { kind: "goto"; node: string; pause?: boolean; clear?: boolean }
     | { kind: "push"; node: string; onReturn?: Prose; pause?: boolean }
     | { kind: "return"; pause?: boolean }
-    | { kind: "open_map"; map: string; cancelable: boolean };
+    | { kind: "open_map"; map: string; cancelable: boolean }
+    | { kind: "game_over" };
 
 export type Transition =
     | { kind: "goto"; node: string; pause: boolean; clear: boolean }
     | { kind: "push"; node: string; pause: boolean; onReturn?: Prose; trip?: boolean }
     | { kind: "return"; pause: boolean }
-    | { kind: "open_map"; map: string; cancelable: boolean };
+    | { kind: "open_map"; map: string; cancelable: boolean }
+    | { kind: "game_over" };
 
 
 // Prose
@@ -214,7 +216,8 @@ export interface StackFrame {
 
 export type Screen =
     | { kind: "node" }
-    | { kind: "map"; map: string; cancelable: boolean };
+    | { kind: "map"; map: string; cancelable: boolean }
+    | { kind: "game_over" }; // the game has ended: all that's left is to load a save or start again
 
 export interface SaveData {
     vars: Record<string, Value>;

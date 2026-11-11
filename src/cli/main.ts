@@ -111,6 +111,10 @@ async function main(): Promise<void> {
     let state = newGame(content, startNode, rng);
     show(content, state);
     for (;;) {
+        if (state.screen.kind === "game_over") {
+            console.log(`\n${BOLD}Game over.${RESET}`);
+            break;
+        }
         if (state.screen.kind === "map") {
             const map = mapView(content, state, state.screen.map, rng);
             const cancelable = state.screen.cancelable;

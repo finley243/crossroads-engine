@@ -153,5 +153,7 @@ export function applyEffect(effect: Effect, context: EvalContext): Transition | 
             return { kind: "return", pause: effect.pause ?? false };
         case "open_map":
             return { kind: "open_map", map: effect.map, cancelable: effect.cancelable };
+        case "game_over":
+            return { kind: "game_over" };
     }
 }

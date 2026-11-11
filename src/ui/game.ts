@@ -67,8 +67,9 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         return mapScreen.isOpen() || historyScreen.isOpen() || pageScreen.isOpen() || menuScreen.isOpen();
     }
     // Every action that changes the game goes through here: the game is saved after it, and then it's shown.
+    // Not when it ends the game, so that the last save is from before the choice that did, and loading it gives the player that choice again.
     function commit(animate = true): void {
-        autosaver?.save(state);
+        if (state.screen.kind !== "game_over" && state.pending?.kind !== "game_over") autosaver?.save(state);
         showScene(animate);
     }
     function showScene(animate = true): void {
@@ -86,6 +87,10 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         page.story.innerHTML = textToHtml(view.latestEntry.text);
         page.options.replaceChildren();
         rollInProgress = view.roll !== undefined;
+        if (state.screen.kind === "game_over") {
+            openGameOver(token); // the scene that ended it stays on screen, with the screen over it
+            return;
+        }
         if (view.roll) {
             showRoll(view.roll, view.options, token); // the scene itself has been read already, so it isn't typed again
             return;
@@ -324,6 +329,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     }
     function createMenuHost(): MenuHost {
         const host: MenuHost = { newGame: () => replaceGame(newGame(content, startNode, rng), true) };
+        if (platform?.quit) host.quit = () => platform.quit!();
         if (!platform || !autosaver) return host;
         const missing = async (): Promise<never> => {
             throw new Error("That save isn't there any more.");
@@ -354,6 +360,14 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         };
         return host;
     }
+    // The screen for a game that's over: load the last save, load another, start again, or quit.
+    function openGameOver(token: number): void {
+        const show = (saved?: StoredSave): void => {
+            if (token === sceneToken) menuScreen.open(saved ? { mode: "gameOver", latest: entryOf(saved) } : { mode: "gameOver" });
+        };
+        if (!autosaver) show();
+        else autosaver.latest().then(show, () => show());
+    }
     // Where the game starts: a new game, unless there are saves, in which case the player is asked what they want.
     function begin(): void {
         if (!autosaver) {
@@ -362,7 +376,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         }
         autosaver.latest().then(
             saved => {
-                if (saved) menuScreen.open({ launch: true, latest: entryOf(saved) });
+                if (saved) menuScreen.open({ mode: "launch", latest: entryOf(saved) });
                 else showScene();
             },
             error => {

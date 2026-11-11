@@ -7,6 +7,8 @@ export interface SavePlatform {
     exportFile(name: string, text: string): Promise<void>;
     /** Asks the player to choose a file, and gives what's in it, or nothing if they didn't choose one. */
     importFile(): Promise<string | undefined>;
+    /** Closes the game, on a platform that has a way to: a desktop app does, and a web page doesn't. */
+    quit?(): void;
 }
 
 /** A browser: saves in IndexedDB, a file downloaded to export, and a file chosen to import. */

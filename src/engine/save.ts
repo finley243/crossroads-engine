@@ -160,6 +160,7 @@ function isHistoryEntry(entry: unknown): entry is HistoryEntry {
 function validScreen(content: Content, screen: unknown): Screen | undefined {
     if (!isObject(screen)) return undefined;
     if (screen.kind === "node") return { kind: "node" };
+    if (screen.kind === "game_over") return { kind: "game_over" };
     if (screen.kind === "map" && typeof screen.map === "string" && typeof screen.cancelable === "boolean" && content.maps[screen.map]) {
         return { kind: "map", map: screen.map, cancelable: screen.cancelable };
     }
@@ -222,6 +223,7 @@ function validTransition(content: Content, state: GameState, transition: unknown
         case "push":
             return typeof transition.node === "string" && content.nodes[transition.node] !== undefined && (transition.onReturn === undefined || runs(content, state, transition.onReturn));
         case "return":
+        case "game_over":
             return true;
         case "open_map":
             return typeof transition.map === "string" && content.maps[transition.map] !== undefined;

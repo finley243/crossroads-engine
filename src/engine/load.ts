@@ -403,6 +403,7 @@ class Resolver {
                 if (!this.content.maps[effect.map]) this.error(`Unknown map '${effect.map}'`);
                 return effect;
             case "return":
+            case "game_over":
                 return effect;
         }
     }

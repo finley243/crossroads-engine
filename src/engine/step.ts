@@ -29,6 +29,7 @@ export function newGame(content: Content, startNode: string, rng: Rng): GameStat
 }
 
 export function step(content: Content, state: GameState, optionIndex: number, rng: Rng): GameState {
+    if (state.screen.kind === "game_over") throw new RuntimeError("The game is over, so there's nothing to choose");
     if (state.screen.kind !== "node") throw new RuntimeError(`Options can't be chosen while a ${state.screen.kind} is open`);
     const s = structuredClone(state);
     if (s.pending) {
@@ -98,7 +99,7 @@ function stepPendingRoll(s: GameState, content: Content, optionIndex: number, rn
 
 export function refreshOptions(content: Content, state: GameState, rng: Rng): GameState {
     const s = structuredClone(state);
-    s.options = s.pending || s.pendingRoll ? [] : computeOptions(s, content, rng);
+    s.options = s.pending || s.pendingRoll || s.screen.kind === "game_over" ? [] : computeOptions(s, content, rng);
     return s;
 }
 
@@ -161,7 +162,7 @@ export function advance(s: GameState, content: Content, rng: Rng, first: Transit
         transition = next.transition;
     }
     record(s, pieces, label);
-    s.options = s.pending ? [] : computeOptions(s, content, rng);
+    s.options = s.pending || s.screen.kind === "game_over" ? [] : computeOptions(s, content, rng);
 }
 
 // Any text before a transition is shown first with a Continue button if the author asked for a pause, and always
@@ -172,6 +173,7 @@ function pausesBeforeRunning(t: Transition): boolean {
         case "push":
             return t.pause;
         case "open_map":
+        case "game_over": // the text that ends the game is read first, and the screen comes when the player continues
             return true;
         case "return":
             return t.pause;
@@ -210,6 +212,9 @@ function carryOut(s: GameState, content: Content, rng: Rng, t: Transition): { te
         }
         case "open_map":
             s.screen = { kind: "map", map: t.map, cancelable: t.cancelable };
+            return { text: "" };
+        case "game_over":
+            s.screen = { kind: "game_over" };
             return { text: "" };
     }
 }

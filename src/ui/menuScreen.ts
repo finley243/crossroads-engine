@@ -26,12 +26,17 @@ export interface MenuHost {
         exportCurrent(): Promise<void>;
     };
     newGame(): void;
+    /** Closes the game, if this platform can. Without it, the game-over screen has no Quit. */
+    quit?: () => void;
 }
+
+/** The menu is in the game, or it's what the player sees when the game starts, or when it's over. The last two can't be closed. */
+export type MenuMode = "game" | "launch" | "gameOver";
 
 export interface MenuScreen {
     isOpen(): boolean;
-    /** `launch` is when the game hasn't started yet, so that there's nothing behind the menu to go back to. `latest` is the save that Continue loads. */
-    open(options?: { launch?: boolean; latest?: SaveEntry }): void;
+    /** `mode` is "launch" when the game hasn't started yet, or "gameOver" when it's ended, so that there's nothing behind the menu to go back to. `latest` is the save that Continue, or Load last save, loads. */
+    open(options?: { mode?: Exclude<MenuMode, "game">; latest?: SaveEntry }): void;
     close(): void;
     handleAction(action: InputAction): boolean;
 }
@@ -40,7 +45,7 @@ const MAX_WARNINGS_SHOWN = 8;
 
 /** The menu, with the saves and a new game in it. Its views are a stack, and going back goes to the one before. */
 export function createMenuScreen(root: HTMLElement, background: HTMLElement, host: MenuHost): MenuScreen {
-    let launch = false;
+    let mode: MenuMode = "game";
     let latest: SaveEntry | undefined;
     let views: Array<() => void> = []; // how to draw each view, the one showing last
     let busy = false; // while something is being loaded or stored, so that a second click doesn't start another
@@ -51,7 +56,7 @@ export function createMenuScreen(root: HTMLElement, background: HTMLElement, hos
     function dismiss(): void {
         if (busy) return;
         if (views.length > 1) back();
-        else if (!launch) close();
+        else if (mode === "game") close();
     }
 
     function back(): void {
@@ -67,7 +72,7 @@ export function createMenuScreen(root: HTMLElement, background: HTMLElement, hos
 
     function close(): void {
         views = [];
-        launch = false;
+        mode = "game";
         latest = undefined;
         busy = false;
         root.classList.remove("panel-locked");
@@ -109,15 +114,17 @@ export function createMenuScreen(root: HTMLElement, background: HTMLElement, hos
 
     function renderRoot(): void {
         const items: HTMLElement[] = [];
-        if (launch && latest) {
+        if (mode !== "game" && latest) {
             const entry = latest;
-            const continueButton = button("", () => void load(host.saves!.loadSlot(entry.id)));
-            continueButton.append(element("span", "menu-main", "Continue"), ...saveLabel(entry));
-            items.push(continueButton);
+            const resume = button("", () => void load(host.saves!.loadSlot(entry.id)));
+            resume.append(element("span", "menu-main", mode === "gameOver" ? "Load last save" : "Continue"), ...saveLabel(entry));
+            items.push(resume);
         }
-        if (host.saves) items.push(button("Saves", () => show(renderSaves)));
-        items.push(button("New game", () => (launch ? startNew() : show(renderNewGame))));
-        draw("Menu", ...items);
+        // When the game is over there's no point in a list of saves if there aren't any
+        if (host.saves && (mode !== "gameOver" || latest)) items.push(button(mode === "gameOver" ? "Load…" : "Saves", () => show(renderSaves)));
+        items.push(button("New game", () => (mode === "game" ? show(renderNewGame) : startNew())));
+        if (mode === "gameOver" && host.quit) items.push(button("Quit", () => host.quit!()));
+        draw(mode === "gameOver" ? "Game over" : "Menu", ...items);
     }
 
     function startNew(): void {
@@ -156,7 +163,7 @@ export function createMenuScreen(root: HTMLElement, background: HTMLElement, hos
                     items.push(row);
                 }
                 const actions = element("div", "save-actions");
-                if (!launch) actions.append(button("Export this game", () => void act(host.saves!.exportCurrent()), "menu-small"));
+                if (mode === "game") actions.append(button("Export this game", () => void act(host.saves!.exportCurrent()), "menu-small"));
                 actions.append(button("Import a file…", () => void importFile(), "menu-small"), button("Back", back, "menu-small"));
                 items.push(actions);
                 draw("Saves", ...items);
@@ -236,11 +243,11 @@ export function createMenuScreen(root: HTMLElement, background: HTMLElement, hos
         isOpen: panel.isOpen,
         open(options = {}) {
             if (panel.isOpen()) return;
-            launch = options.launch === true;
+            mode = options.mode ?? "game";
             latest = options.latest;
             views = [];
-            root.classList.toggle("panel-locked", launch); // no Close button, when there's nothing to close it to
-            panel.open("Menu");
+            root.classList.toggle("panel-locked", mode !== "game"); // no Close button, when there's nothing to close it to
+            panel.open(mode === "gameOver" ? "Game over" : "Menu");
             show(renderRoot);
         },
         close,
