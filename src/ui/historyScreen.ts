@@ -18,8 +18,8 @@ const PAGE_STEP = 0.85; // the fraction of the list's height for a page up or do
 /** The earlier scenes in an overlay, like the map. Its list scrolls by itself, whatever scrolls it. */
 export function createHistoryScreen(root: HTMLElement, background: HTMLElement): HistoryScreen {
     root.innerHTML = `
-        <div class="history-panel">
-            <div class="history-head"><h2>History</h2><button class="history-close" type="button">Close</button></div>
+        <div class="panel">
+            <div class="panel-head"><h2 class="panel-title">History</h2><button class="panel-close" type="button">Close</button></div>
             <div class="history-log" role="log" aria-live="off" aria-label="Earlier scenes" tabindex="0">
                 <p class="history-empty">Nothing here yet.</p>
                 <div class="history-entries"></div>
@@ -28,7 +28,7 @@ export function createHistoryScreen(root: HTMLElement, background: HTMLElement):
     const log = root.querySelector<HTMLElement>(".history-log")!;
     const entries = root.querySelector<HTMLElement>(".history-entries")!;
     const empty = root.querySelector<HTMLElement>(".history-empty")!;
-    const closeButton = root.querySelector<HTMLButtonElement>(".history-close")!;
+    const closeButton = root.querySelector<HTMLButtonElement>(".panel-close")!;
     let open = false;
     let keys: number[] = []; // identifies each entry in the list, to tell whether the list matches the game
     let focusBefore: Element | null = null;
