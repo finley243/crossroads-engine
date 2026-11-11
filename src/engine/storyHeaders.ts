@@ -83,6 +83,7 @@ export interface OptionClauses {
     requires?: Expr;
     roll?: Expr; // the chance, in percent
     noReroll?: boolean; // this roll can't be re-rolled
+    noOdds?: boolean; // this roll's chance isn't shown to the player
 }
 
 // What follows {section}: nothing, or "if" and a condition.
@@ -95,7 +96,7 @@ export function parseOptionClauses(stream: TokenStream): OptionClauses {
     const clauses: OptionClauses = {};
     if (stream.check("eof")) return clauses;
     for (;;) {
-        const word = stream.expect("name", "'if', 'roll' or 'noreroll'");
+        const word = stream.expect("name", "'if', 'roll', 'noreroll' or 'noodds'");
         if (word.text === "if") {
             if (clauses.requires) throw new ParseError("This option already has an 'if'", word.position);
             clauses.requires = parseExpression(stream);
@@ -105,8 +106,11 @@ export function parseOptionClauses(stream: TokenStream): OptionClauses {
         } else if (word.text === "noreroll") {
             if (clauses.noReroll) throw new ParseError("This option already has 'noreroll'", word.position);
             clauses.noReroll = true;
+        } else if (word.text === "noodds") {
+            if (clauses.noOdds) throw new ParseError("This option already has 'noodds'", word.position);
+            clauses.noOdds = true;
         } else {
-            throw new ParseError(`Expected 'if', 'roll' or 'noreroll' but found '${word.text}'`, word.position);
+            throw new ParseError(`Expected 'if', 'roll', 'noreroll' or 'noodds' but found '${word.text}'`, word.position);
         }
         if (!stream.match("comma")) break;
     }

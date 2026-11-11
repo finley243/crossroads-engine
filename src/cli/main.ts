@@ -67,7 +67,10 @@ function show(content: Content, state: GameState): void {
         if (view.latestEntry.option) console.log(`${DIM}› ${view.latestEntry.option}${RESET}\n`);
         if (view.latestEntry.text) console.log(style(view.latestEntry.text) + "\n");
     }
-    view.options.forEach((option, i) => console.log(`  ${i + 1}. ${style(option.label)}`));
+    view.options.forEach((option, i) => {
+        const roll = option.roll ? ` ${DIM}[roll ${option.roll.chance}%${option.roll.oddsHidden ? ", hidden from the player" : ""}]${RESET}` : "";
+        console.log(`  ${i + 1}. ${style(option.label)}${roll}`);
+    });
 }
 
 function showMap(view: MapView, canTravel: boolean, cancelable = true): MapLocationView[] {

@@ -1,4 +1,5 @@
 import type { RollView } from "../engine/types";
+import { inlineHtml } from "./formatText";
 import { settings } from "./settings";
 
 const GLYPHS = "#%&@$?*+=<>/\\|~0123456789";
@@ -25,15 +26,15 @@ export function createRollCard(roll: RollView): RollCard {
     const element = document.createElement("div");
     element.className = "roll-card rolling";
     element.setAttribute("role", "status");
-    const odds = document.createElement("div");
-    odds.className = "roll-odds";
-    odds.textContent = `${roll.chance}% chance${roll.attempt > 1 ? " \u00b7 re-rolled" : ""}`;
+    const label = document.createElement("div"); // what the player chose, since the options have gone while the roll is shown
+    label.className = "roll-label";
+    label.innerHTML = inlineHtml(roll.label);
     const word = document.createElement("div");
     word.className = "roll-word";
     word.setAttribute("aria-hidden", "true"); // the characters flickering past aren't worth reading out
     const announcement = document.createElement("span");
     announcement.className = "sr-only";
-    element.append(odds, word, announcement);
+    element.append(label, word, announcement);
 
     const result = roll.success ? "SUCCESS" : "FAILURE";
     const glyph = () => GLYPHS[Math.floor(decoration() * GLYPHS.length)]!;
@@ -49,7 +50,7 @@ export function createRollCard(roll: RollView): RollCard {
             word.textContent = result;
             element.classList.remove("rolling");
             element.classList.add(roll.success ? "success" : "failure");
-            announcement.textContent = `The roll ${roll.success ? "succeeded" : "failed"}, at ${roll.chance}% chance.`;
+            announcement.textContent = `The roll ${roll.success ? "succeeded" : "failed"}${roll.oddsHidden ? "" : `, at ${roll.chance}% chance`}${roll.attempt > 1 ? ", re-rolled" : ""}.`;
             onSettled();
         };
         const duration = prefersReducedMotion() ? 0 : settings.rollRevealMs;

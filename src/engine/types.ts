@@ -97,7 +97,7 @@ export interface NodePresentation extends PresentationDecl {
 
 export type OptionResult = 
     | { kind: "plain"; text: Prose }
-    | { kind: "roll"; chance: Expr; success: Prose; failure: Prose; noReroll?: boolean }; // chance is a whole number of percent
+    | { kind: "roll"; chance: Expr; success: Prose; failure: Prose; noReroll?: boolean; noOdds?: boolean }; // chance is a whole number of percent; noOdds keeps it from being shown
 
 export interface Option {
     index: number;
@@ -260,6 +260,7 @@ export interface PageView {
 export interface OptionView {
     index: number;
     label: string;
+    roll?: { chance: number; oddsHidden: boolean }; // when choosing it makes a roll: its chance now, which the author may not want shown
 }
 
 /** A roll the player has made, whose outcome hasn't been applied yet. Every roll waits like this, so that it can be shown. */
@@ -273,7 +274,9 @@ export interface PendingRoll {
 
 /** What a player needs to see of a pending roll. */
 export interface RollView {
+    label: string; // the text of the option that was chosen, as it was when it was chosen
     chance: number;
+    oddsHidden: boolean; // the author doesn't want the chance shown, so a screen reader shouldn't be told it either
     success: boolean;
     attempt: number;
     rerollsLeft: number;

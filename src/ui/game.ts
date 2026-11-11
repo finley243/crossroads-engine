@@ -8,6 +8,7 @@ import { inlineHtml, textToHtml } from "./formatText";
 import { availablePages, pageView } from "../engine/pages";
 import { createAutosaver } from "./autosave";
 import { createHistoryScreen } from "./historyScreen";
+import { createOddsRing } from "./oddsRing";
 import { createMenuScreen, type LoadResult, type MenuHost, type SaveEntry } from "./menuScreen";
 import { createPageScreen } from "./pageScreen";
 import type { SavePlatform } from "./platform";
@@ -102,7 +103,9 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     }
     function showOptions(options: OptionView[], belowRoll = false): void {
         visibleOptions = options;
-        const buttons = options.map(createOptionButton);
+        // A column for the rings of the options that make a roll, but only in a list that has one, so that the labels line up
+        const gutter = options.some(option => option.roll && !option.roll.oddsHidden);
+        const buttons = options.map((option, position) => createOptionButton(option, position, gutter));
         if (belowRoll) page.options.append(...buttons);
         else page.options.replaceChildren(...buttons);
         if (options.length === 0) {
@@ -146,9 +149,17 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     function optionButtons(): HTMLButtonElement[] {
         return [...page.options.querySelectorAll("button")];
     }
-    function createOptionButton(option: OptionView, position: number): HTMLButtonElement {
+    function createOptionButton(option: OptionView, position: number, gutter: boolean): HTMLButtonElement {
         const button = document.createElement("button");
-        button.innerHTML = `<span class="option-number">${position + 1}</span>${inlineHtml(option.label)}`;
+        const shown = option.roll && !option.roll.oddsHidden ? option.roll : undefined;
+        button.innerHTML = `<span class="option-number">${position + 1}</span>${gutter ? '<span class="option-odds"></span>' : ""}${inlineHtml(option.label)}`;
+        if (shown) {
+            button.querySelector(".option-odds")!.append(createOddsRing(shown.chance));
+            const spoken = document.createElement("span");
+            spoken.className = "odds-sr";
+            spoken.textContent = `, roll, ${shown.chance}% chance`;
+            button.append(spoken);
+        }
         button.style.setProperty("--position", String(position));
         button.addEventListener("click", () => choose(option));
         button.addEventListener("mousemove", event => {

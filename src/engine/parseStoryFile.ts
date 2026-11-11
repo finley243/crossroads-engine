@@ -197,9 +197,11 @@ function buildOption(section: Section, index: number, context: Context): Option 
 }
 
 function buildResult(section: Section, clauses: OptionClauses, context: Context): OptionResult | undefined {
-    if (clauses.noReroll && !clauses.roll) {
-        report(context, section.opener.position, "'noreroll' only applies to an option with a roll");
-        return undefined;
+    for (const [flag, word] of [[clauses.noReroll, "noreroll"], [clauses.noOdds, "noodds"]] as const) {
+        if (flag && !clauses.roll) {
+            report(context, section.opener.position, `'${word}' only applies to an option with a roll`);
+            return undefined;
+        }
     }
     const plain = findPart(section, "then");
     const success = findPart(section, "then success");
@@ -231,6 +233,7 @@ function buildResult(section: Section, clauses: OptionClauses, context: Context)
     if (!successText || !failureText) return undefined;
     const roll: OptionResult = { kind: "roll", chance: clauses.roll, success: successText, failure: failureText };
     if (clauses.noReroll) roll.noReroll = true;
+    if (clauses.noOdds) roll.noOdds = true;
     return roll;
 }
 

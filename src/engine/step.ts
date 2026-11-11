@@ -107,19 +107,36 @@ export function sceneView(content: Content, state: GameState, rng: Rng): SceneVi
     if (!latestEntry) throw new RuntimeError("The game has no history yet");
     const presentation = resolvePresentation(content, state, rng);
     if (state.pendingRoll) {
-        const { chance, success, attempt } = state.pendingRoll;
+        const { label, chance, success, attempt } = state.pendingRoll;
+        const rolled = content.nodes[state.node]?.options[state.pendingRoll.option]?.result;
         const left = rerollsLeft(content, state);
         const rerollable = canReroll(content, state);
         const options: OptionView[] = rerollable
             ? [{ index: ROLL_REROLL, label: `Re-roll (${left} left)` }, { index: ROLL_ACCEPT, label: ACCEPT_LABEL }]
             : [{ index: ROLL_ACCEPT, label: ACCEPT_LABEL }];
-        const roll: RollView = { chance, success, attempt, rerollsLeft: left, canReroll: rerollable };
+        const roll: RollView = { label, chance, oddsHidden: rolled?.kind === "roll" && rolled.noOdds === true, success, attempt, rerollsLeft: left, canReroll: rerollable };
         return { latestEntry, options, presentation, roll };
     }
     const options: OptionView[] = state.pending
         ? [{ index: 0, label: CONTINUE_LABEL }]
-        : state.options.map(o => ({ index: o.index, label: o.label }));
+        : state.options.map(o => {
+              const view: OptionView = { index: o.index, label: o.label };
+              const roll = rollOf(content, state, o.index, rng);
+              if (roll) view.roll = roll;
+              return view;
+          });
     return { latestEntry, options, presentation };
+}
+
+// The chance of the roll that choosing an option makes, as it stands now: the same number the roll will use.
+function rollOf(content: Content, state: GameState, index: number, rng: Rng): OptionView["roll"] {
+    const result = content.nodes[state.node]?.options[index]?.result;
+    if (result?.kind !== "roll") return undefined;
+    try {
+        return { chance: clampChance(evaluateInt(result.chance, { content, state, rng })), oddsHidden: result.noOdds === true };
+    } catch {
+        return undefined; // choosing it will say what's wrong; the rest of the scene can still be shown
+    }
 }
 
 export function advance(s: GameState, content: Content, rng: Rng, first: Transition | undefined, pieces: string[], label: string | undefined): void {

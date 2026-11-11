@@ -120,6 +120,7 @@ main {
     position: relative;
     display: flex;
     align-items: center;
+    text-align: left; /* a label that wraps is left-aligned, and not centered line by line as a button does by default */
     width: 100%;
     padding: 16px 20px;
     background: transparent;
@@ -164,8 +165,27 @@ main {
 }
 
 .option-number {
+    min-width: 0.7em; /* the same width for every digit, so that what follows lines up from one option to the next */
+    font-variant-numeric: tabular-nums;
     color: var(--muted);
     margin-right: 0.6em;
+}
+
+/* The ring for the chance of a roll sits between the number and the text, in a column of its own when any option in the list has one. */
+.option-odds {
+    flex: none;
+    display: flex;
+    align-items: center;
+    width: 20px;
+    margin-right: 0.75em;
+}
+
+.odds-ring .odds-track {
+    stroke: rgba(255, 255, 255, 0.2);
+}
+
+.odds-ring .odds-arc {
+    stroke: var(--accent);
 }
 
 /* The result of a roll, shown above the choice to re-roll it or accept it. */
@@ -180,10 +200,9 @@ main {
     transition: border-color 0.25s;
 }
 
-.roll-odds {
-    font-size: 0.8rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+.roll-label {
+    max-width: 36ch;
+    line-height: 1.4;
     color: var(--muted);
 }
 
@@ -220,7 +239,8 @@ main {
 }
 
 /* Text for screen readers only. */
-.sr-only {
+.sr-only,
+.odds-sr {
     position: absolute;
     width: 1px;
     height: 1px;

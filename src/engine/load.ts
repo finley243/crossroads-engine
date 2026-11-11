@@ -316,6 +316,7 @@ class Resolver {
             failure: this.prose(result.failure, scope),
         };
         if (result.noReroll) resolved.noReroll = true;
+        if (result.noOdds) resolved.noOdds = true;
         return resolved;
     }
 
