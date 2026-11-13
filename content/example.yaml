@@ -1,6 +1,0 @@
-vars:
-  credits: 5
-  door_open: false
-  mood: { enum: [calm, shaken], default: calm }
-  has_crowbar: false
-  stims: 0
