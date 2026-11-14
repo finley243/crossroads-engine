@@ -163,7 +163,7 @@ async function main(): Promise<void> {
             const wanted = input.slice(1).trim().toLowerCase();
             const mapId = wanted === "" ? defaultMapId(content, state, rng) : Object.values(content.maps).find(map => map.id.toLowerCase() === wanted || map.name.toLowerCase() === wanted)?.id;
             if (mapId) showMap(mapView(content, state, mapId, rng), false);
-            else console.log(wanted === "" ? "There are no maps." : `There's no map '${wanted}' (the maps are ${Object.keys(content.maps).join(", ")}).`);
+            else console.log(wanted === "" ? "There's no map for where you are (m name shows any map)." : `There's no map '${wanted}' (the maps are ${Object.keys(content.maps).join(", ")}).`);
             continue;
         }
         const choice = view.options[Number(input) - 1];

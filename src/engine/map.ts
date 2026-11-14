@@ -42,9 +42,8 @@ export function mapView(content: Content, state: GameState, mapId: string, rng: 
 
 export function defaultMapId(content: Content, state: GameState, rng: Rng): string | undefined {
     const currentLocation = currentLocationId(content, state, rng);
-    const maps = Object.values(content.maps);
-    const withCurrentLocation = maps.find(map => map.locations.some(location => location.id === currentLocation));
-    return (withCurrentLocation ?? maps[0])?.id;
+    if (currentLocation === null) return undefined; // a node with no location has no map
+    return Object.values(content.maps).find(map => map.locations.some(location => location.id === currentLocation))?.id;
 }
 
 export function travel(content: Content, state: GameState, locationId: string, rng: Rng): GameState {

@@ -74,6 +74,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
     }
     function showScene(animate = true): void {
         const token = ++sceneToken;
+        syncMapButton();
         if (state.screen.kind === "map") {
             openTravelMap();
             return;
@@ -260,6 +261,10 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         const found = availablePages(content, state, rng).find(summary => summary.key === key);
         return found ? openPage(found.title) : false;
     }
+    // The Map button is only there while the current node's location is on a map.
+    function syncMapButton(): void {
+        page.mapButton.hidden = defaultMapId(content, state, rng) === undefined;
+    }
     // One button for each page that's available now, in the order they were written, before the history and the map.
     function syncPageButtons(): void {
         const pages = availablePages(content, state, rng);
@@ -433,7 +438,7 @@ export function startGame(page: GamePage, sources: SourceFile[], startNode: stri
         buttons[next]!.focus();
         return true;
     }
-    page.mapButton.hidden = Object.keys(content.maps).length === 0; // there's nothing to show without a map
+    syncMapButton();
     page.mapButton.addEventListener("click", () => openReadOnlyMap());
     page.historyButton.addEventListener("click", () => openHistory());
     page.menuButton.addEventListener("click", () => openMenu());
